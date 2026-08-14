@@ -35,13 +35,10 @@ function resolveUrl(modelId: string, repoPath: string): string {
 
 async function downloadFile(url: string, dest: string): Promise<void> {
   mkdirSync(dirname(dest), { recursive: true })
-  const head = await fetch(url, {
-    method: "HEAD",
-    headers: { "user-agent": USER_AGENT },
-    redirect: "follow"
-  })
-  const expected = Number(head.headers.get("content-length") ?? 0)
-  if (existsSync(dest) && expected > 0 && statSync(dest).size === expected) {
+  // Each file is written to a `.part` temp and renamed atomically only after a
+  // complete download, so an existing destination is always a finished file.
+  // Skip it so a re-run after a failure resumes from the first missing file.
+  if (existsSync(dest) && statSync(dest).size > 0) {
     console.log(`skip  ${dest}`)
     return
   }
