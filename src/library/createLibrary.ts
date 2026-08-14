@@ -540,7 +540,6 @@ export function createLibrary(deps: LibraryDeps): Library {
     },
     configureProvider,
     async setSpokenLanguageDefault(language) {
-      assertUsable()
       state.spokenLanguageDefault = language
       emit()
     },

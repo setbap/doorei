@@ -43,6 +43,23 @@ describe("first launch", () => {
     expect(library.snapshot().usable).toBe(true)
   })
 
+  test("Spoken language default can be stored before the Library is usable", async () => {
+    const { library } = createTestLibrary()
+    await library.setSpokenLanguageDefault("en")
+    expect(library.snapshot().spokenLanguageDefault).toBe("en")
+    expect(library.snapshot().usable).toBe(false)
+  })
+
+  test("App language and Spoken language stay independent when the Library opens", async () => {
+    const { library, modelStore } = createTestLibrary()
+    await library.setSpokenLanguageDefault("en")
+    modelStore.markAllRequired()
+    await library.chooseAppLanguage("fa")
+    expect(library.snapshot().appLanguage).toBe("fa")
+    expect(library.snapshot().spokenLanguageDefault).toBe("en")
+    expect(library.snapshot().usable).toBe(true)
+  })
+
   test("optional Provider can be stored on the gate without being required", async () => {
     const { library, modelStore } = createTestLibrary()
     modelStore.markAllRequired()
