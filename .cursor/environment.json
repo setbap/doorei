@@ -1,0 +1,4 @@
+{
+  "name": "Doorei",
+  "install": "pnpm install && pnpm fetch-models"
+}
