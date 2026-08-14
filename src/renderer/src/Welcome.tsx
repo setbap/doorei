@@ -10,7 +10,7 @@ type Props = { snapshot: LibrarySnapshot }
 type Step = "intro" | "setup"
 
 const glassPanel =
-  "rounded-[20px] border border-white/10 bg-white/[0.06] shadow-[0_12px_40px_rgba(0,0,0,0.28)] ring-1 ring-inset ring-white/10 backdrop-blur-[40px] backdrop-saturate-150"
+  "rounded-[20px] border border-white/20 bg-white/15 shadow-[0_12px_40px_rgba(0,0,0,0.28)] ring-1 ring-inset ring-white/15 backdrop-blur-2xl backdrop-saturate-150"
 
 const primaryButton =
   "h-11 w-full rounded-full border-0 bg-neutral-100 text-base text-neutral-900 hover:bg-white"
@@ -41,7 +41,7 @@ export function Welcome({ snapshot }: Props) {
 
   return (
     <div
-      className="relative flex min-h-full items-center justify-center overflow-hidden px-6 py-16"
+      className="relative flex min-h-full items-center justify-center overflow-hidden px-6 py-16 font-sans"
       dir={selected === "fa" ? "rtl" : "ltr"}
       lang={selected}
     >
