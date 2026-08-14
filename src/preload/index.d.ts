@@ -3,6 +3,7 @@ import type { LibrarySnapshot } from "../library/types.js"
 declare global {
   interface Window {
     doorei: {
+      platform: string
       snapshot: () => Promise<LibrarySnapshot>
       call: (method: string, ...args: unknown[]) => Promise<unknown>
       subscribe: (listener: (snapshot: LibrarySnapshot) => void) => () => void

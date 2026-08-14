@@ -3,6 +3,7 @@ import type { LibrarySnapshot } from "../library/index.js"
 import type { DownloadProgress } from "../adapters/downloadModels.js"
 
 const api = {
+  platform: process.platform,
   snapshot: (): Promise<LibrarySnapshot> => ipcRenderer.invoke("library:snapshot"),
   call: (method: string, ...args: unknown[]): Promise<unknown> =>
     ipcRenderer.invoke("library:call", method, args),

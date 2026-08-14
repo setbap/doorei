@@ -101,20 +101,29 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
           </TabsContent>
           <TabsContent value="language" className="mt-4 grid gap-4">
             <LanguageField
-              id="output-language"
-              label={t(lang, "outputLanguage")}
-              value={snapshot.outputLanguage}
+              id="app-language"
+              label={t(lang, "appLanguage")}
+              hint={t(lang, "appLanguageHint")}
+              value={lang}
               items={languageItems}
-              onValueChange={(value) => void window.doorei.call("setOutputLanguage", value)}
+              onValueChange={(value) => void window.doorei.call("chooseAppLanguage", value)}
             />
             <LanguageField
               id="spoken-default"
-              label={t(lang, "spokenDefault")}
+              label={t(lang, "courseAsrLanguage")}
+              hint={t(lang, "courseAsrLanguageHint")}
               value={snapshot.spokenLanguageDefault}
               items={languageItems}
               onValueChange={(value) =>
                 void window.doorei.call("setSpokenLanguageDefault", value)
               }
+            />
+            <LanguageField
+              id="output-language"
+              label={t(lang, "outputLanguage")}
+              value={snapshot.outputLanguage}
+              items={languageItems}
+              onValueChange={(value) => void window.doorei.call("setOutputLanguage", value)}
             />
           </TabsContent>
           <TabsContent value="provider" className="mt-4 grid gap-3">
@@ -209,19 +218,24 @@ function SettingCheck({
 function LanguageField({
   id,
   label,
+  hint,
   value,
   items,
   onValueChange
 }: {
   id: string
   label: string
+  hint?: string
   value: AppLanguage | SpokenLanguage
   items: Record<string, string>
   onValueChange: (value: AppLanguage) => void
 }) {
   return (
     <div className="grid gap-2">
-      <Label htmlFor={id}>{label}</Label>
+      <div className="grid gap-0.5">
+        <Label htmlFor={id}>{label}</Label>
+        {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      </div>
       <Select
         value={value}
         items={items}

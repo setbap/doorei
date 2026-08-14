@@ -13,15 +13,22 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    document.documentElement.dataset.platform = window.doorei.platform
+  }, [])
+
+  useEffect(() => {
     if (!snapshot) return
     document.documentElement.lang = snapshot.appLanguage ?? "fa"
     document.documentElement.dir = snapshot.direction
+    document.documentElement.dataset.surface = snapshot.usable ? "shell" : "welcome"
   }, [snapshot])
 
   return (
     <TooltipProvider>
       {!snapshot ? (
-        <div className="flex h-full items-center justify-center text-muted-foreground">Doorei</div>
+        <div className="flex h-full items-center justify-center bg-background text-muted-foreground">
+          Doorei
+        </div>
       ) : !snapshot.usable ? (
         <Welcome snapshot={snapshot} />
       ) : (

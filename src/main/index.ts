@@ -1,7 +1,7 @@
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { pathToFileURL } from "node:url"
-import { app, BrowserWindow, dialog, ipcMain, protocol, net, shell } from "electron"
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, protocol, net, shell } from "electron"
 import { createLibrary, type Library, type LibrarySnapshot } from "../library/index.js"
 import { createDiskModelStore } from "../adapters/modelStore.js"
 import { createNodeMedia, videoPathsInFolder } from "../adapters/media.js"
@@ -31,6 +31,7 @@ function dataPaths() {
 
 function createMainWindow(): void {
   const isMac = process.platform === "darwin"
+  nativeTheme.themeSource = "dark"
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -38,8 +39,8 @@ function createMainWindow(): void {
     minHeight: 700,
     title: "Doorei",
     show: false,
-    backgroundColor: "#09090b",
-    vibrancy: isMac ? "sidebar" : undefined,
+    backgroundColor: isMac ? "#00000000" : "#171717",
+    vibrancy: isMac ? "under-window" : undefined,
     visualEffectState: isMac ? "active" : undefined,
     titleBarStyle: isMac ? "hiddenInset" : "default",
     trafficLightPosition: isMac ? { x: 16, y: 16 } : undefined,
