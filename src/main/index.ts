@@ -1,0 +1,170 @@
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
+import { pathToFileURL } from "node:url"
+import { app, BrowserWindow, dialog, ipcMain, protocol, net, shell } from "electron"
+import { createLibrary, type Library, type LibrarySnapshot } from "../library/index.js"
+import { createDiskModelStore } from "../adapters/modelStore.js"
+import { createNodeMedia, videoPathsInFolder } from "../adapters/media.js"
+import { createSpeechRecognizer } from "../adapters/speech.js"
+import { createEmbedder } from "../adapters/embedder.js"
+import { createProviderClient } from "../adapters/provider.js"
+import { downloadRequiredModels } from "../adapters/downloadModels.js"
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "media",
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true }
+  }
+])
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+let library: Library
+let mainWindow: BrowserWindow | null = null
+
+function dataPaths() {
+  const root = app.getPath("userData")
+  return {
+    dataDir: join(root, "library"),
+    modelsRoot: join(root, "models")
+  }
+}
+
+function createMainWindow(): void {
+  const isMac = process.platform === "darwin"
+  mainWindow = new BrowserWindow({
+    width: 1440,
+    height: 900,
+    minWidth: 1024,
+    minHeight: 700,
+    title: "Doorei",
+    show: false,
+    backgroundColor: "#09090b",
+    vibrancy: isMac ? "sidebar" : undefined,
+    visualEffectState: isMac ? "active" : undefined,
+    titleBarStyle: isMac ? "hiddenInset" : "default",
+    trafficLightPosition: isMac ? { x: 16, y: 16 } : undefined,
+    webPreferences: {
+      preload: join(__dirname, "../preload/index.mjs"),
+      contextIsolation: true,
+      sandbox: false
+    }
+  })
+
+  mainWindow.webContents.session.protocol.handle("media", (request) => {
+    const filePath = decodeURIComponent(request.url.replace(/^media:\/\//, "").replace(/^\/+/, "/"))
+    return net.fetch(pathToFileURL(filePath).href)
+  })
+
+  mainWindow.on("ready-to-show", () => mainWindow?.show())
+  mainWindow.webContents.setWindowOpenHandler((details) => {
+    void shell.openExternal(details.url)
+    return { action: "deny" }
+  })
+
+  if (process.env.ELECTRON_RENDERER_URL) {
+    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
+  } else {
+    void mainWindow.loadFile(join(__dirname, "../renderer/index.html"))
+  }
+}
+
+const LIBRARY_METHODS = new Set([
+  "chooseAppLanguage",
+  "setOutputLanguage",
+  "configureProvider",
+  "setSpokenLanguageDefault",
+  "updateSettings",
+  "updatePrompt",
+  "createCourse",
+  "renameCourse",
+  "selectCourse",
+  "createSession",
+  "reorderSessions",
+  "addVideos",
+  "reorderVideos",
+  "moveVideo",
+  "deleteVideo",
+  "relinkVideo",
+  "relinkFolder",
+  "selectVideo",
+  "setPlaybackPosition",
+  "setWatched",
+  "markEnded",
+  "nextVideoId",
+  "addNote",
+  "editNote",
+  "search",
+  "ask",
+  "setActivity",
+  "retryJob",
+  "regenerateCaption"
+])
+
+app.whenReady().then(() => {
+  const { dataDir, modelsRoot } = dataPaths()
+  library = createLibrary({
+    dataDir,
+    modelStore: createDiskModelStore(modelsRoot),
+    media: createNodeMedia(),
+    speechRecognizer: createSpeechRecognizer(modelsRoot),
+    embedder: createEmbedder(modelsRoot),
+    providerClient: createProviderClient(() => library)
+  })
+  library.subscribe(() => {
+    const snap: LibrarySnapshot = library.snapshot()
+    mainWindow?.webContents.send("library:changed", snap)
+  })
+
+  ipcMain.handle("library:snapshot", () => library.snapshot())
+  ipcMain.handle("library:call", async (_event, method: string, args: unknown[]) => {
+    if (!LIBRARY_METHODS.has(method)) {
+      throw new Error(`Unknown Library method: ${method}`)
+    }
+    const target = library[method as keyof Library] as (...params: unknown[]) => unknown
+    return await target(...args)
+  })
+  ipcMain.handle("media:url", (_event, filePath: string) => {
+    const encoded = encodeURI(`media://${filePath}`)
+    return encoded
+  })
+  ipcMain.handle("dialog:videos", async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ["openFile", "multiSelections"],
+      filters: [{ name: "Video", extensions: ["mp4", "mkv", "webm", "mov", "m4v", "avi"] }]
+    })
+    return result.canceled ? [] : result.filePaths
+  })
+  ipcMain.handle("dialog:folder", async () => {
+    const result = await dialog.showOpenDialog({ properties: ["openDirectory"] })
+    if (result.canceled || !result.filePaths[0]) return []
+    return videoPathsInFolder(result.filePaths[0])
+  })
+  ipcMain.handle("dialog:file", async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ["openFile"],
+      filters: [{ name: "Video", extensions: ["mp4", "mkv", "webm", "mov", "m4v", "avi"] }]
+    })
+    return result.filePaths[0] ?? null
+  })
+  ipcMain.handle("dialog:directory", async () => {
+    const result = await dialog.showOpenDialog({ properties: ["openDirectory"] })
+    return result.filePaths[0] ?? null
+  })
+  ipcMain.handle("models:download", async () => {
+    await downloadRequiredModels(modelsRoot, (progress) => {
+      mainWindow?.webContents.send("models:progress", progress)
+    })
+    const snap = library.snapshot()
+    mainWindow?.webContents.send("library:changed", snap)
+    return snap
+  })
+
+  createMainWindow()
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
+  })
+})
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit()
+})

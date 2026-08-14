@@ -12,3 +12,14 @@
 
 # Dependencies
 node_modules/
+
+# Electron / Vite
+out/
+dist/
+release/
+
+# Test / local data
+coverage/
+*.local
+*.tsbuildinfo
+
