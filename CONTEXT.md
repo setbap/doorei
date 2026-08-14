@@ -7,11 +7,11 @@ A personal recall library for downloaded video courses. Search and summary are w
 ### Library
 
 **Library**:
-The on-disk collection of Courses and all derived data. It never contains video bytes. It is unusable until App language is chosen and required ASR Models are on disk.
+The on-disk collection of Courses and all derived data. It never contains video bytes. It is unusable until App language is chosen and required ASR Models and the Embedding Model are on disk.
 _Avoid_: vault, workspace, catalog, database
 
 **Course**:
-A named container of Sessions the user switches between. Each Course has a spoken language, which selects the ASR Model used to Caption its Videos.
+A named container of Sessions the user switches between.
 _Avoid_: class, program, folder
 
 **Session**:
@@ -19,7 +19,7 @@ An ordered group of Videos in a Course. The user may treat it as a day, a week, 
 _Avoid_: chapter, week, day, module, lesson, thread
 
 **Video**:
-An app record for one media file in a Session, with a position. It points at a file; it is not the file. It survives a missing file until relinked or deleted.
+An app record for one media file in a Session, with a position. It points at a file; it is not the file. It survives a missing file until relinked or deleted. It has a Spoken language, chosen when it is added.
 _Avoid_: part, lecture, clip, episode, item
 
 ### Text
@@ -29,11 +29,11 @@ Timed text attached to a Video, used as subtitles and as the source for later te
 _Avoid_: subtitle, transcript, srt, vtt
 
 **Captioning**:
-Persisted work that streams ASR into a Video's Caption. The user can play while it runs; progress survives quitting the app. It is not translation, and it is not Playback Position.
+Persisted work that streams ASR into a Video's Caption. It does not start until that Video's ASR Model is fully on disk. The user can play while it runs; progress survives quitting the app. A failure keeps the Video and any partial Caption, marks the job failed, shows a readable error, and can be retried. It is not translation, and it is not Playback Position.
 _Avoid_: transcription job, live translate, progress
 
 **Improved Caption**:
-A timed rewrite of a Caption with corrected wording. Search, Ask, and Summary use it when it exists; so do subtitles. The original Caption is kept so improvement can be re-run without ASR. It stays in the Course's spoken language.
+A timed rewrite of a Caption with corrected wording. Search, Ask, and Summary use it when it exists; so do subtitles. The original Caption is kept so improvement can be re-run without ASR. It stays in the Video's Spoken language.
 _Avoid_: cleaned transcript, search text, normalized caption
 
 **Summary**:
@@ -51,7 +51,7 @@ _Avoid_: prompt, chat box
 ### Recall
 
 **Search**:
-Local retrieval over a Video, a Session, or a Course. Returns Hits you can jump to. Does not require a Provider.
+Local retrieval over a Video, a Session, or a Course — lexical and semantic. Returns Hits you can jump to. Does not require a Provider.
 _Avoid_: find, query
 
 **Ask**:
@@ -79,13 +79,21 @@ Language of the UI. Persian is RTL. Chosen on first launch before the Library is
 _Avoid_: locale, i18n
 
 **Output language**:
-Language of Summary and Ask. Defaults to App language. Independent of a Course's spoken language.
+Language of Summary and Ask. Defaults to App language. Independent of a Video's Spoken language.
 _Avoid_: response language, target language
 
+**Spoken language**:
+The language of a Video's audio. Chosen when the Video is added, defaulting from App settings. It selects which ASR Model Captioning uses. Shenava is never used for English.
+_Avoid_: audio language, transcript language
+
 **ASR Model**:
-A local speech-to-text model downloaded to disk. Required models must finish downloading (every file) before the Library is usable. A Course's spoken language selects which ASR Model captions its Videos.
+A local speech-to-text model downloaded to disk. Persian and English models must finish downloading (every file) before the Library is usable. A Video's Spoken language selects which one Captioning uses.
 _Avoid_: weights, checkpoint, engine
 
+**Embedding Model**:
+A local model that turns Caption text into vectors for semantic Search and Ask. It must finish downloading before the Library is usable.
+_Avoid_: encoder, vectorizer
+
 **Provider**:
-The LLM for Improved Caption, Summary, and Ask: an OpenAI-compatible endpoint, or an optional editor SDK. Missing Provider leaves those jobs off; Search still works.
+The LLM for Improved Caption, Summary, and Ask: an OpenAI-compatible endpoint, or an optional editor SDK. Missing Provider leaves those jobs off; Search still works. A failure shows a readable error and can be retried; a half-finished Improved Caption or Summary is not kept.
 _Avoid_: backend, API, model
