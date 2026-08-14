@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@fontsource-variable/vazirmatn";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -111,42 +112,27 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-  --font-sans: "Vazirmatn", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Vazirmatn Variable", "Vazirmatn", "Vazir", ui-sans-serif, system-ui,
+    sans-serif;
 }
 
-@keyframes welcome-blob {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  33% {
-    transform: translate3d(6%, -8%, 0) scale(1.12);
-  }
-  66% {
-    transform: translate3d(-7%, 5%, 0) scale(0.92);
-  }
+.welcome-grain {
+  background:
+    radial-gradient(ellipse 80% 55% at 18% 6%, rgb(72 72 72 / 42%), transparent 58%),
+    radial-gradient(ellipse 70% 50% at 92% 96%, rgb(0 0 0 / 88%), transparent 52%),
+    linear-gradient(165deg, #2c2c2c 0%, #171717 46%, #0a0a0a 100%);
 }
 
-.welcome-blob {
-  animation: welcome-blob 22s ease-in-out infinite;
-}
-
-.welcome-blob-delay {
-  animation-delay: -7s;
-}
-
-.welcome-blob-delay-2 {
-  animation-delay: -13s;
-}
-
-.welcome-blob-delay-3 {
-  animation-delay: -18s;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .welcome-blob {
-    animation: none;
-  }
+.welcome-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("./assets/noise.svg");
+  background-size: 180px 180px;
+  mix-blend-mode: overlay;
+  opacity: 0.55;
+  filter: blur(0.45px);
+  pointer-events: none;
 }
 
 @layer base {
@@ -159,10 +145,11 @@
   #root {
     height: 100%;
     margin: 0;
+    background: transparent;
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply text-foreground antialiased;
     font-family: var(--font-sans);
   }
 }

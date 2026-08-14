@@ -10,7 +10,10 @@ type Props = { snapshot: LibrarySnapshot }
 type Step = "intro" | "setup"
 
 const glassPanel =
-  "rounded-3xl border border-white/25 bg-white/10 shadow-[0_18px_60px_rgba(8,6,24,0.35)] ring-1 ring-white/15 backdrop-blur-2xl backdrop-saturate-150"
+  "rounded-[20px] border border-white/10 bg-white/[0.06] shadow-[0_12px_40px_rgba(0,0,0,0.28)] ring-1 ring-inset ring-white/10 backdrop-blur-[40px] backdrop-saturate-150"
+
+const primaryButton =
+  "h-11 w-full rounded-full border-0 bg-neutral-100 text-base text-neutral-900 hover:bg-white"
 
 export function Welcome({ snapshot }: Props) {
   const [step, setStep] = useState<Step>(snapshot.appLanguage ? "setup" : "intro")
@@ -18,6 +21,7 @@ export function Welcome({ snapshot }: Props) {
   const [spoken, setSpoken] = useState<SpokenLanguage>(snapshot.spokenLanguageDefault)
   const [downloading, setDownloading] = useState(false)
   const [log, setLog] = useState("")
+  const nativeGlass = window.doorei.platform === "darwin"
 
   useEffect(() => {
     return window.doorei.onDownloadProgress((progress) => {
@@ -41,7 +45,7 @@ export function Welcome({ snapshot }: Props) {
       dir={selected === "fa" ? "rtl" : "ltr"}
       lang={selected}
     >
-      <WelcomeBackdrop />
+      <WelcomeBackdrop nativeGlass={nativeGlass} />
       <div className="relative z-10 w-full">
         {step === "intro" ? (
           <Intro lang={selected} onStart={() => setStep("setup")} />
@@ -76,16 +80,12 @@ export function Welcome({ snapshot }: Props) {
 function Intro({ lang, onStart }: { lang: AppLanguage; onStart: () => void }) {
   return (
     <div className={cn(glassPanel, "mx-auto w-full max-w-lg px-8 py-10 text-center")}>
-      <p className="text-sm font-medium tracking-wide text-white/70">{t(lang, "appName")}</p>
+      <p className="text-sm font-medium tracking-wide text-white/60">{t(lang, "appName")}</p>
       <h1 className="mt-3 text-4xl font-semibold tracking-tight text-white">{t(lang, "welcomeTitle")}</h1>
-      <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-white/75">
+      <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-white/70">
         {t(lang, "welcomeBody")}
       </p>
-      <Button
-        size="lg"
-        className="mt-8 h-11 w-full rounded-full border-0 bg-gradient-to-br from-fuchsia-400 via-violet-500 to-cyan-400 text-base text-white shadow-lg shadow-violet-500/30 hover:from-fuchsia-300 hover:via-violet-400 hover:to-cyan-300 hover:bg-transparent"
-        onClick={onStart}
-      >
+      <Button size="lg" className={cn(primaryButton, "mt-8")} onClick={onStart}>
         {t(lang, "getStarted")}
       </Button>
     </div>
@@ -123,35 +123,35 @@ function Setup({
         <Button
           variant="ghost"
           size="sm"
-          className="text-white/80 hover:bg-white/10 hover:text-white"
+          className="text-white/70 hover:bg-white/10 hover:text-white"
           onClick={onBack}
         >
           <ArrowLeft className="rtl:rotate-180" />
           {t(lang, "back")}
         </Button>
-        <p className="text-sm font-medium text-white/70">{t(lang, "appName")}</p>
+        <p className="text-sm font-medium text-white/60">{t(lang, "appName")}</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className={cn(glassPanel, "flex flex-col p-6")}>
           <div className="flex items-center gap-2 text-white">
-            <Download className="size-4 opacity-80" />
+            <Download className="size-4 opacity-70" />
             <h2 className="text-lg font-semibold">{t(lang, "downloadTitle")}</h2>
           </div>
-          <p className="mt-1 text-sm text-white/65">{t(lang, "downloadHint")}</p>
+          <p className="mt-1 text-sm text-white/55">{t(lang, "downloadHint")}</p>
           <ul className="mt-5 grid gap-3">
             {models.map((model) => (
               <li
                 key={model.id}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5"
+                className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5"
               >
                 <span className="truncate text-sm text-white/90">{model.label}</span>
                 <Badge
                   variant={model.complete ? "secondary" : "outline"}
                   className={
                     model.complete
-                      ? "border-transparent bg-emerald-400/20 text-emerald-100"
-                      : "border-white/20 bg-transparent text-white/70"
+                      ? "border-transparent bg-white/15 text-white"
+                      : "border-white/20 bg-transparent text-white/55"
                   }
                 >
                   {model.complete ? "✓" : "○"}
@@ -160,13 +160,13 @@ function Setup({
             ))}
           </ul>
           {log ? (
-            <p className="mt-3 truncate text-xs text-white/55">
+            <p className="mt-3 truncate text-xs text-white/45">
               {t(lang, "downloadLog")}: {log}
             </p>
           ) : null}
           <div className="mt-auto pt-6">
             <Button
-              className="w-full rounded-full border-0 bg-white/90 text-zinc-900 hover:bg-white"
+              className="w-full rounded-full border-0 bg-white/90 text-neutral-900 hover:bg-white"
               disabled={downloading || allComplete}
               onClick={onDownload}
             >
@@ -181,7 +181,7 @@ function Setup({
 
         <section className={cn(glassPanel, "flex flex-col gap-6 p-6")}>
           <div className="flex items-center gap-2 text-white">
-            <Languages className="size-4 opacity-80" />
+            <Languages className="size-4 opacity-70" />
             <h2 className="text-lg font-semibold">{t(lang, "languageTitle")}</h2>
           </div>
 
@@ -202,12 +202,7 @@ function Setup({
         </section>
       </div>
 
-      <Button
-        size="lg"
-        className="h-11 w-full rounded-full border-0 bg-gradient-to-br from-fuchsia-400 via-violet-500 to-cyan-400 text-base text-white shadow-lg shadow-violet-500/30 hover:from-fuchsia-300 hover:via-violet-400 hover:to-cyan-300 hover:bg-transparent"
-        disabled={!allComplete}
-        onClick={onOpen}
-      >
+      <Button size="lg" className={primaryButton} disabled={!allComplete} onClick={onOpen}>
         {t(lang, "continue")}
       </Button>
     </div>
@@ -231,7 +226,7 @@ function LanguagePair({
     <div className="grid gap-2">
       <div>
         <p className="text-sm font-medium text-white">{label}</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-white/60">{hint}</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-white/50">{hint}</p>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <LanguageChoice
@@ -269,24 +264,25 @@ function LanguageChoice({
       className={cn(
         "rounded-2xl border px-3 py-3 text-start transition",
         selected
-          ? "border-white/55 bg-white/25 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]"
-          : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
+          ? "border-white/25 bg-white/15 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+          : "border-white/10 bg-black/20 text-white/75 hover:bg-white/10"
       )}
     >
       <span className="block text-sm font-medium">{title}</span>
-      <span className="mt-0.5 block text-xs text-white/55">{native}</span>
+      <span className="mt-0.5 block text-xs text-white/45">{native}</span>
     </button>
   )
 }
 
-function WelcomeBackdrop() {
+function WelcomeBackdrop({ nativeGlass }: { nativeGlass: boolean }) {
+  if (nativeGlass) {
+    return <div className="pointer-events-none absolute inset-0 bg-black/20" />
+  }
+
   return (
-    <div className="pointer-events-none absolute inset-0 bg-[#12081f]">
-      <div className="welcome-blob absolute -top-28 -start-24 size-[30rem] rounded-full bg-fuchsia-500/55 blur-3xl" />
-      <div className="welcome-blob welcome-blob-delay absolute top-[-6%] -end-24 size-[34rem] rounded-full bg-cyan-400/45 blur-3xl" />
-      <div className="welcome-blob welcome-blob-delay-2 absolute -bottom-28 start-1/4 size-[32rem] rounded-full bg-violet-600/50 blur-3xl" />
-      <div className="welcome-blob welcome-blob-delay-3 absolute bottom-1/4 end-1/5 size-[22rem] rounded-full bg-amber-400/35 blur-3xl" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.16),transparent_42%)]" />
+    <div className="welcome-grain pointer-events-none absolute inset-0">
+      <div className="absolute -top-24 start-[-10%] size-[36rem] rounded-full bg-white/5 blur-3xl" />
+      <div className="absolute -bottom-28 end-[-8%] size-[40rem] rounded-full bg-black/70 blur-3xl" />
     </div>
   )
 }
