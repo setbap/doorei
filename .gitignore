@@ -23,3 +23,7 @@ coverage/
 *.local
 *.tsbuildinfo
 
+# Bundled model weights (populate with pnpm fetch-models)
+resources/models/**
+!resources/models/README.md
+

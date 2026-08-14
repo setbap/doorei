@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Download, Languages } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowLeft, Languages, Package } from "lucide-react";
 import type {
   AppLanguage,
   LibrarySnapshot,
   SpokenLanguage,
 } from "../../library/types.js";
+import { MODEL_HUB_LINKS } from "../../library/models.js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -29,15 +30,7 @@ export function Welcome({ snapshot }: Props) {
   const [spoken, setSpoken] = useState<SpokenLanguage>(
     snapshot.spokenLanguageDefault
   );
-  const [downloading, setDownloading] = useState(false);
-  const [log, setLog] = useState("");
   const nativeGlass = window.doorei.platform === "darwin";
-
-  useEffect(() => {
-    return window.doorei.onDownloadProgress((progress) => {
-      setLog(`${progress.modelId} — ${progress.file}`);
-    });
-  }, []);
 
   const allComplete = snapshot.requiredModels.every((model) => model.complete);
   const models = useMemo(
@@ -64,18 +57,10 @@ export function Welcome({ snapshot }: Props) {
             lang={selected}
             spoken={spoken}
             models={models}
-            log={log}
-            downloading={downloading}
             allComplete={allComplete}
             onBack={() => setStep("intro")}
             onAppLanguage={setSelected}
             onSpokenLanguage={setSpoken}
-            onDownload={() => {
-              setDownloading(true);
-              void window.doorei
-                .downloadModels()
-                .finally(() => setDownloading(false));
-            }}
             onOpen={() => {
               void (async () => {
                 await window.doorei.call("setSpokenLanguageDefault", spoken);
@@ -117,25 +102,19 @@ function Setup({
   lang,
   spoken,
   models,
-  log,
-  downloading,
   allComplete,
   onBack,
   onAppLanguage,
   onSpokenLanguage,
-  onDownload,
   onOpen,
 }: {
   lang: AppLanguage;
   spoken: SpokenLanguage;
   models: { id: string; complete: boolean; label: string }[];
-  log: string;
-  downloading: boolean;
   allComplete: boolean;
   onBack: () => void;
   onAppLanguage: (language: AppLanguage) => void;
   onSpokenLanguage: (language: SpokenLanguage) => void;
-  onDownload: () => void;
   onOpen: () => void;
 }) {
   return (
@@ -158,14 +137,10 @@ function Setup({
       <div className="grid gap-4 md:grid-cols-2">
         <section className={cn(glassPanel, "flex flex-col p-6")}>
           <div className="flex items-center gap-2 text-white">
-            <Download className="size-4 opacity-70" />
-            <h2 className="text-lg font-semibold">
-              {t(lang, "downloadTitle")}
-            </h2>
+            <Package className="size-4 opacity-70" />
+            <h2 className="text-lg font-semibold">{t(lang, "modelsTitle")}</h2>
           </div>
-          <p className="mt-1 text-sm text-white/55">
-            {t(lang, "downloadHint")}
-          </p>
+          <p className="mt-1 text-sm text-white/55">{t(lang, "modelsHint")}</p>
           <ul className="mt-5 grid gap-3">
             {models.map((model) => (
               <li
@@ -188,24 +163,9 @@ function Setup({
               </li>
             ))}
           </ul>
-          {log ? (
-            <p className="mt-3 truncate text-xs text-white/45">
-              {t(lang, "downloadLog")}: {log}
-            </p>
-          ) : null}
-          <div className="mt-auto pt-6">
-            <Button
-              className="w-full border-0 bg-white/90 text-neutral-900 hover:bg-white"
-              disabled={downloading || allComplete}
-              onClick={onDownload}
-            >
-              {allComplete
-                ? t(lang, "modelsReady")
-                : downloading
-                ? t(lang, "downloading")
-                : t(lang, "downloadModels")}
-            </Button>
-          </div>
+          <p className="mt-auto pt-6 text-sm text-white/55">
+            {allComplete ? t(lang, "modelsReady") : t(lang, "modelsMissing")}
+          </p>
         </section>
 
         <section className={cn(glassPanel, "flex flex-col gap-6 p-6")}>
@@ -241,7 +201,29 @@ function Setup({
       >
         {t(lang, "continue")}
       </Button>
+      <ModelRepoLinks />
     </div>
+  );
+}
+
+function ModelRepoLinks() {
+  return (
+    <p className="px-1 text-center text-xs leading-relaxed text-white/40">
+      {MODEL_HUB_LINKS.map((link, index) => (
+        <span key={link.id}>
+          {index > 0 ? " · " : null}
+          <button
+            type="button"
+            className="text-white/50 underline-offset-2 transition hover:text-white hover:underline"
+            onClick={() => {
+              void window.doorei.openUrl(link.url);
+            }}
+          >
+            {link.name}
+          </button>
+        </span>
+      ))}
+    </p>
   );
 }
 

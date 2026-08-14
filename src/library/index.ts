@@ -1,4 +1,11 @@
-export { REQUIRED_MODELS } from "./models.js"
+export {
+  MODEL_FILES,
+  MODEL_HUB_LINKS,
+  MODEL_PACK_VERSION,
+  REQUIRED_MODELS,
+  destFilesForModel,
+  hubUrlForModel
+} from "./models.js"
 export { createLibrary } from "./createLibrary.js"
 export type {
   Activity,

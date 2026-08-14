@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron"
 import type { LibrarySnapshot } from "../library/index.js"
-import type { DownloadProgress } from "../adapters/downloadModels.js"
 
 const api = {
   platform: process.platform,
@@ -17,12 +16,7 @@ const api = {
   pickFolderVideos: (): Promise<string[]> => ipcRenderer.invoke("dialog:folder"),
   pickFile: (): Promise<string | null> => ipcRenderer.invoke("dialog:file"),
   pickDirectory: (): Promise<string | null> => ipcRenderer.invoke("dialog:directory"),
-  downloadModels: (): Promise<LibrarySnapshot> => ipcRenderer.invoke("models:download"),
-  onDownloadProgress: (listener: (progress: DownloadProgress) => void): (() => void) => {
-    const handler = (_event: unknown, progress: DownloadProgress) => listener(progress)
-    ipcRenderer.on("models:progress", handler)
-    return () => ipcRenderer.removeListener("models:progress", handler)
-  }
+  openUrl: (url: string): Promise<void> => ipcRenderer.invoke("shell:open-url", url)
 }
 
 contextBridge.exposeInMainWorld("doorei", api)

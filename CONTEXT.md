@@ -87,11 +87,11 @@ The language of a Video's audio. Chosen when the Video is added, defaulting from
 _Avoid_: audio language, transcript language
 
 **ASR Model**:
-A local speech-to-text model downloaded to disk. Persian and English models must finish downloading (every file) before the Library is usable. A Video's Spoken language selects which one Captioning uses.
+A local speech-to-text model shipped with the app. Persian and English models must be on disk before the Library is usable. A Video's Spoken language selects which one Captioning uses.
 _Avoid_: weights, checkpoint, engine
 
 **Embedding Model**:
-A local model that turns Caption text into vectors for semantic Search and Ask. It must finish downloading before the Library is usable.
+A local model that turns Caption text into vectors for semantic Search and Ask. It must be on disk before the Library is usable.
 _Avoid_: encoder, vectorizer
 
 **Provider**:

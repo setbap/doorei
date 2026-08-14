@@ -21,7 +21,7 @@ async function loadExtractor(modelPath: string): Promise<(texts: string[]) => Pr
   const transformers = await import("@huggingface/transformers")
   const pipe = await transformers.pipeline("feature-extraction", modelPath, {
     local_files_only: true,
-    dtype: "fp32"
+    dtype: "q8"
   })
   return async (texts) => {
     const result = await pipe(texts, { pooling: "mean", normalize: true })

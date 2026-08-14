@@ -9,9 +9,10 @@ const en: Dict = {
     "A personal recall library for downloaded video courses. Search and Summary are why it exists; the player is how you watch and leave progress.",
   getStarted: "Get started",
   back: "Back",
-  downloadTitle: "Download",
-  downloadHint:
-    "Persian ASR, English ASR, and the Embedding Model must finish downloading before the Library opens.",
+  modelsTitle: "Models",
+  modelsHint:
+    "Persian ASR, English ASR, and the Embedding Model ship with the app. They stay on disk across updates until the model pack changes.",
+  modelsMissing: "Required model files are missing from the app bundle.",
   languageTitle: "Language",
   appLanguage: "App language",
   appLanguageHint: "Menus, buttons, and the rest of the UI.",
@@ -24,14 +25,12 @@ const en: Dict = {
   modelPersianAsr: "Persian ASR (Shenava)",
   modelEnglishAsr: "English ASR (Parakeet)",
   modelEmbedding: "Embedding (Search)",
-  downloadModels: "Download models",
-  downloading: "Downloading…",
-  modelsReady: "All required models are on disk",
+  modelsReady: "Required models are in the app bundle",
   providerOptional: "Provider (optional)",
   providerUrl: "OpenAI-compatible URL",
   providerKey: "Provider key",
   continue: "Open Library",
-  gateHint: "The Library stays closed until language is chosen and every model file is downloaded.",
+  gateHint: "The Library stays closed until language is chosen and every required model file is on disk.",
   newCourse: "New Course",
   courseName: "Course name",
   newSession: "New Session",
@@ -88,8 +87,7 @@ const en: Dict = {
   settingsPlayer: "Player",
   settingsLanguage: "Language",
   settingsProvider: "Provider",
-  settingsPrompts: "Prompts",
-  downloadLog: "Download"
+  settingsPrompts: "Prompts"
 }
 
 const fa: Dict = {
@@ -99,9 +97,10 @@ const fa: Dict = {
     "کتابخانهٔ مرور شخصی برای دوره‌های ویدیویی دانلودشده. جستجو و خلاصه دلیل وجود آن است؛ پخش‌کننده راه تماشا و به‌جاگذاشتن پیشرفت است.",
   getStarted: "شروع کنید",
   back: "بازگشت",
-  downloadTitle: "دانلود",
-  downloadHint:
-    "بازشناسی فارسی، بازشناسی انگلیسی و مدل جاسازی باید کامل دانلود شوند تا کتابخانه باز شود.",
+  modelsTitle: "مدل‌ها",
+  modelsHint:
+    "بازشناسی فارسی، بازشناسی انگلیسی و مدل جاسازی با برنامه می‌آیند. تا وقتی بستهٔ مدل عوض نشود، با به‌روزرسانی دوباره دانلود نمی‌شوند.",
+  modelsMissing: "فایل‌های مدل لازم در بستهٔ برنامه نیستند.",
   languageTitle: "زبان",
   appLanguage: "زبان برنامه",
   appLanguageHint: "منوها، دکمه‌ها و بقیهٔ رابط برنامه.",
@@ -114,14 +113,12 @@ const fa: Dict = {
   modelPersianAsr: "بازشناسی فارسی (شنوا)",
   modelEnglishAsr: "بازشناسی انگلیسی (پاراکیت)",
   modelEmbedding: "مدل جاسازی (جستجو)",
-  downloadModels: "دانلود مدل‌ها",
-  downloading: "در حال دانلود…",
-  modelsReady: "همهٔ مدل‌های لازم روی دیسک هستند",
+  modelsReady: "مدل‌های لازم در بستهٔ برنامه هستند",
   providerOptional: "ارائه‌دهنده (اختیاری)",
   providerUrl: "نشانی سازگار با OpenAI",
   providerKey: "کلید ارائه‌دهنده",
   continue: "ورود به کتابخانه",
-  gateHint: "کتابخانه تا انتخاب زبان و دانلود کامل همهٔ فایل‌های مدل باز نمی‌شود.",
+  gateHint: "کتابخانه تا انتخاب زبان و بودن همهٔ فایل‌های مدل لازم روی دیسک باز نمی‌شود.",
   newCourse: "دورهٔ تازه",
   courseName: "نام دوره",
   newSession: "نشست تازه",
@@ -178,8 +175,7 @@ const fa: Dict = {
   settingsPlayer: "پخش",
   settingsLanguage: "زبان",
   settingsProvider: "ارائه‌دهنده",
-  settingsPrompts: "دستورها",
-  downloadLog: "دانلود"
+  settingsPrompts: "دستورها"
 }
 
 export function t(language: AppLanguage | null, key: keyof typeof en): string {
