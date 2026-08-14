@@ -60,10 +60,23 @@ const en: Dict = {
   summaryPrompt: "Summary prompt",
   askPrompt: "Ask prompt",
   save: "Save",
+  cancel: "Cancel",
   providerKind: "Provider kind",
   jobs: "Jobs",
   emptyLibrary: "Create a Course to start.",
-  create: "Create"
+  create: "Create",
+  renameCourse: "Rename Course",
+  editNote: "Edit Note",
+  markWatchedAtEnd: "Mark Watched when a Video ends",
+  fromFolder: "Original folder prefix",
+  spokenLanguage: "Spoken language",
+  providerOn: "Provider",
+  providerOff: "No Provider",
+  settingsPlayer: "Player",
+  settingsLanguage: "Language",
+  settingsProvider: "Provider",
+  settingsPrompts: "Prompts",
+  downloadLog: "Download"
 }
 
 const fa: Dict = {
@@ -124,10 +137,23 @@ const fa: Dict = {
   summaryPrompt: "دستور خلاصه",
   askPrompt: "دستور پرسش",
   save: "ذخیره",
+  cancel: "لغو",
   providerKind: "نوع ارائه‌دهنده",
   jobs: "کارها",
   emptyLibrary: "برای شروع یک دوره بسازید.",
-  create: "بساز"
+  create: "بساز",
+  renameCourse: "تغییر نام دوره",
+  editNote: "ویرایش یادداشت",
+  markWatchedAtEnd: "علامت دیده‌شده در پایان ویدیو",
+  fromFolder: "پیشوند پوشهٔ قبلی",
+  spokenLanguage: "زبان گفتار",
+  providerOn: "ارائه‌دهنده",
+  providerOff: "بدون ارائه‌دهنده",
+  settingsPlayer: "پخش",
+  settingsLanguage: "زبان",
+  settingsProvider: "ارائه‌دهنده",
+  settingsPrompts: "دستورها",
+  downloadLog: "دانلود"
 }
 
 export function t(language: AppLanguage | null, key: keyof typeof en): string {

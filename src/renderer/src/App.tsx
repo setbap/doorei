@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import type { LibrarySnapshot } from "../../library/types.js"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { Welcome } from "./Welcome"
 import { Shell } from "./Shell"
 
@@ -17,13 +18,15 @@ export function App() {
     document.documentElement.dir = snapshot.direction
   }, [snapshot])
 
-  if (!snapshot) {
-    return <div className="flex h-full items-center justify-center text-zinc-400">Doorei</div>
-  }
-
-  if (!snapshot.usable) {
-    return <Welcome snapshot={snapshot} />
-  }
-
-  return <Shell snapshot={snapshot} />
+  return (
+    <TooltipProvider>
+      {!snapshot ? (
+        <div className="flex h-full items-center justify-center text-muted-foreground">Doorei</div>
+      ) : !snapshot.usable ? (
+        <Welcome snapshot={snapshot} />
+      ) : (
+        <Shell snapshot={snapshot} />
+      )}
+    </TooltipProvider>
+  )
 }

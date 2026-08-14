@@ -1,9 +1,34 @@
 import { useEffect, useMemo, useState } from "react"
 import type { AppLanguage, LibrarySnapshot, ProviderKind } from "../../library/types.js"
-import { Button } from "./components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
 import { t } from "./uiText"
 
 type Props = { snapshot: LibrarySnapshot }
+
+const PROVIDER_ITEMS: Record<ProviderKind, string> = {
+  openai: "OpenAI-compatible",
+  codex: "Codex",
+  opencode: "OpenCode",
+  cursor: "Cursor"
+}
 
 export function Welcome({ snapshot }: Props) {
   const lang = snapshot.appLanguage ?? "fa"
@@ -21,6 +46,10 @@ export function Welcome({ snapshot }: Props) {
   }, [])
 
   const allComplete = snapshot.requiredModels.every((model) => model.complete)
+  const languageItems = {
+    fa: t(selected, "persian"),
+    en: t(selected, "english")
+  }
 
   const models = useMemo(
     () =>
@@ -32,106 +61,151 @@ export function Welcome({ snapshot }: Props) {
   )
 
   return (
-    <div className="mx-auto flex min-h-full max-w-xl flex-col justify-center gap-6 px-6 py-16">
-      <div>
-        <p className="text-sm text-sky-400">{t(selected, "appName")}</p>
-        <h1 className="mt-1 text-3xl font-semibold">{t(selected, "welcomeTitle")}</h1>
-        <p className="mt-2 text-zinc-400">{t(selected, "welcomeBody")}</p>
-      </div>
+    <div className="flex min-h-full items-center justify-center px-6 py-16">
+      <div className="flex w-full max-w-xl flex-col gap-6">
+        <div>
+          <p className="text-sm text-muted-foreground">{t(selected, "appName")}</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">{t(selected, "welcomeTitle")}</h1>
+          <p className="mt-2 text-muted-foreground">{t(selected, "welcomeBody")}</p>
+        </div>
 
-      <label className="grid gap-2">
-        <span className="text-sm text-zinc-400">{t(selected, "appLanguage")}</span>
-        <select
-          className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-2"
-          value={selected}
-          onChange={(event) => {
-            const value = event.target.value as AppLanguage
-            setSelected(value)
-            void window.doorei.call("chooseAppLanguage", value)
-          }}
-        >
-          <option value="fa">{t(selected, "persian")}</option>
-          <option value="en">{t(selected, "english")}</option>
-        </select>
-      </label>
+        <div className="grid gap-2">
+          <Label htmlFor="app-language">{t(selected, "appLanguage")}</Label>
+          <Select
+            value={selected}
+            items={languageItems}
+            onValueChange={(value) => {
+              if (value !== "fa" && value !== "en") return
+              setSelected(value)
+              void window.doorei.call("chooseAppLanguage", value)
+            }}
+          >
+            <SelectTrigger id="app-language" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fa">{languageItems.fa}</SelectItem>
+              <SelectItem value="en">{languageItems.en}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-      <section className="glass rounded-2xl border border-white/10 p-4">
-        <h2 className="text-sm font-medium">{t(selected, "requiredModels")}</h2>
-        <ul className="mt-3 space-y-2 text-sm">
-          {models.map((model) => (
-            <li key={model.id} className="flex items-center justify-between gap-3">
-              <span className="truncate text-zinc-300">{model.label}</span>
-              <span className={model.complete ? "text-emerald-400" : "text-amber-400"}>
-                {model.complete ? "✓" : "○"}
-              </span>
-            </li>
-          ))}
-        </ul>
-        {log ? <p className="mt-2 truncate text-xs text-zinc-500">{log}</p> : null}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t(selected, "requiredModels")}</CardTitle>
+            <CardDescription>{t(selected, "gateHint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {models.map((model) => (
+              <div key={model.id} className="flex items-center justify-between gap-3">
+                <span className="truncate text-sm">{model.label}</span>
+                <Badge variant={model.complete ? "secondary" : "outline"}>
+                  {model.complete ? "✓" : "○"}
+                </Badge>
+              </div>
+            ))}
+            {log ? (
+              <p className="truncate text-xs text-muted-foreground">
+                {t(selected, "downloadLog")}: {log}
+              </p>
+            ) : null}
+          </CardContent>
+          <CardFooter>
+            <Button
+              className="w-full"
+              disabled={downloading || allComplete}
+              onClick={() => {
+                setDownloading(true)
+                void window.doorei.downloadModels().finally(() => setDownloading(false))
+              }}
+            >
+              {allComplete
+                ? t(selected, "modelsReady")
+                : downloading
+                  ? t(selected, "downloading")
+                  : t(selected, "downloadModels")}
+            </Button>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t(selected, "providerOptional")}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            <div className="grid gap-2">
+              <Label>{t(selected, "providerKind")}</Label>
+              <Select
+                value={kind}
+                items={PROVIDER_ITEMS}
+                onValueChange={(value) => {
+                  if (value) setKind(value)
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(PROVIDER_ITEMS) as ProviderKind[]).map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {PROVIDER_ITEMS[item]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="provider-url">{t(selected, "providerUrl")}</Label>
+              <Input
+                id="provider-url"
+                placeholder={t(selected, "providerUrl")}
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="provider-key">{t(selected, "providerKey")}</Label>
+              <Input
+                id="provider-key"
+                placeholder={t(selected, "providerKey")}
+                type="password"
+                value={key}
+                onChange={(event) => setKey(event.target.value)}
+              />
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                if (!url.trim()) {
+                  void window.doorei.call("configureProvider", null)
+                  return
+                }
+                void window.doorei.call("configureProvider", {
+                  kind,
+                  url: url.trim(),
+                  key: key.trim()
+                })
+              }}
+            >
+              {t(selected, "save")}
+            </Button>
+          </CardFooter>
+        </Card>
+
         <Button
-          className="mt-4 w-full"
-          disabled={downloading || allComplete}
+          className="w-full"
+          size="lg"
+          disabled={!allComplete}
           onClick={() => {
-            setDownloading(true)
-            void window.doorei.downloadModels().finally(() => setDownloading(false))
+            void window.doorei.call("chooseAppLanguage", selected)
           }}
         >
-          {allComplete
-            ? t(selected, "modelsReady")
-            : downloading
-              ? t(selected, "downloading")
-              : t(selected, "downloadModels")}
+          {t(selected, "continue")}
         </Button>
-      </section>
-
-      <section className="grid gap-3">
-        <h2 className="text-sm font-medium">{t(selected, "providerOptional")}</h2>
-        <select
-          className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-2"
-          value={kind}
-          onChange={(event) => setKind(event.target.value as ProviderKind)}
-        >
-          <option value="openai">OpenAI-compatible</option>
-          <option value="codex">Codex</option>
-          <option value="opencode">OpenCode</option>
-        </select>
-        <input
-          className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-2"
-          placeholder={t(selected, "providerUrl")}
-          value={url}
-          onChange={(event) => setUrl(event.target.value)}
-        />
-        <input
-          className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-2"
-          placeholder={t(selected, "providerKey")}
-          type="password"
-          value={key}
-          onChange={(event) => setKey(event.target.value)}
-        />
-        <button
-          className="rounded-lg border border-white/10 px-3 py-2 text-sm"
-          onClick={() => {
-            if (!url.trim()) {
-              void window.doorei.call("configureProvider", null)
-              return
-            }
-            void window.doorei.call("configureProvider", { kind, url: url.trim(), key: key.trim() })
-          }}
-        >
-          {t(selected, "save")}
-        </button>
-      </section>
-
-      <p className="text-xs text-zinc-500">{t(selected, "gateHint")}</p>
-      <Button
-        className="w-full bg-white hover:bg-zinc-200"
-        disabled={!allComplete}
-        onClick={() => {
-          void window.doorei.call("chooseAppLanguage", selected)
-        }}
-      >
-        {t(selected, "continue")}
-      </Button>
+      </div>
     </div>
   )
 }
