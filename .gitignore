@@ -1,0 +1,14 @@
+# Installed agent skills — restore with: npx skills experimental_install
+.agents/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+.idea/
+
+# Dependencies
+node_modules/
