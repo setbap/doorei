@@ -8,7 +8,6 @@ import { createNodeMedia, videoPathsInFolder } from "../adapters/media.js"
 import { createSpeechRecognizer } from "../adapters/speech.js"
 import { createEmbedder } from "../adapters/embedder.js"
 import { createProviderClient } from "../adapters/provider.js"
-import { downloadRequiredModels } from "../adapters/downloadModels.js"
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -21,11 +20,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 let library: Library
 let mainWindow: BrowserWindow | null = null
 
+function bundledModelsRoot(): string {
+  if (app.isPackaged) return join(process.resourcesPath, "models")
+  return join(__dirname, "../../resources/models")
+}
+
 function dataPaths() {
-  const root = app.getPath("userData")
   return {
-    dataDir: join(root, "library"),
-    modelsRoot: join(root, "models")
+    dataDir: join(app.getPath("userData"), "library"),
+    modelsRoot: bundledModelsRoot()
   }
 }
 
@@ -151,13 +154,12 @@ app.whenReady().then(() => {
     const result = await dialog.showOpenDialog({ properties: ["openDirectory"] })
     return result.filePaths[0] ?? null
   })
-  ipcMain.handle("models:download", async () => {
-    await downloadRequiredModels(modelsRoot, (progress) => {
-      mainWindow?.webContents.send("models:progress", progress)
-    })
-    const snap = library.snapshot()
-    mainWindow?.webContents.send("library:changed", snap)
-    return snap
+  ipcMain.handle("shell:open-url", async (_event, url: string) => {
+    const parsed = new URL(url)
+    if (parsed.protocol !== "https:" || parsed.hostname !== "huggingface.co") {
+      throw new Error("Blocked URL")
+    }
+    await shell.openExternal(parsed.href)
   })
 
   createMainWindow()

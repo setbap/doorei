@@ -12,15 +12,7 @@ declare global {
       pickFolderVideos: () => Promise<string[]>
       pickFile: () => Promise<string | null>
       pickDirectory: () => Promise<string | null>
-      downloadModels: () => Promise<LibrarySnapshot>
-      onDownloadProgress: (
-        listener: (progress: {
-          modelId: string
-          file: string
-          received: number
-          total: number | null
-        }) => void
-      ) => () => void
+      openUrl: (url: string) => Promise<void>
     }
   }
 }

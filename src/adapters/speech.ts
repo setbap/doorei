@@ -57,7 +57,7 @@ async function runParakeet(
       firstExisting(modelPath, ["decoder_joint-model.int8.onnx", "decoder_joint-model.onnx"]) ??
       ""
     const encoder =
-      firstExisting(modelPath, ["encoder-model.onnx", "encoder-model.int8.onnx"]) ?? ""
+      firstExisting(modelPath, ["encoder-model.int8.onnx", "encoder-model.onnx"]) ?? ""
     const model = await parakeet.fromUrls({
       encoderUrl: pathToFileUrl(encoder),
       decoderUrl: pathToFileUrl(decoder),
