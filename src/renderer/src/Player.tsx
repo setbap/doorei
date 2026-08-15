@@ -31,7 +31,7 @@ type Props = {
   captionBackground: string
   segments: CaptionSegment[]
   watched: boolean
-  autoPlay: boolean
+  playAfterSelect: boolean
   onTimeUpdate: (seconds: number) => void
   onEnded: () => void
   onPrevious: () => Promise<boolean>
@@ -53,7 +53,7 @@ export function Player({
   captionBackground,
   segments,
   watched,
-  autoPlay,
+  playAfterSelect,
   onTimeUpdate,
   onEnded,
   onPrevious,
@@ -161,14 +161,14 @@ export function Player({
     void videoRef.current?.play().catch(() => undefined)
   }
 
-  async function goNeighbor(request: () => Promise<boolean>): Promise<void> {
+  async function skipOrReplay(request: () => Promise<boolean>): Promise<void> {
     const moved = await request()
     if (!moved) replay()
   }
 
-  async function markDone(): Promise<void> {
+  async function markWatched(): Promise<void> {
     await onMarkWatched()
-    await goNeighbor(onNext)
+    await skipOrReplay(onNext)
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
@@ -196,10 +196,10 @@ export function Player({
       onSubtitlesVisibleChange(!subtitlesVisible)
     } else if (event.key === "N") {
       event.preventDefault()
-      void goNeighbor(onNext)
+      void skipOrReplay(onNext)
     } else if (event.key === "P") {
       event.preventDefault()
-      void goNeighbor(onPrevious)
+      void skipOrReplay(onPrevious)
     }
   }
 
@@ -237,7 +237,7 @@ export function Player({
           el.playbackRate = playbackSpeed
           el.volume = volume
           setCurrentTime(el.currentTime)
-          if (autoPlay) void el.play().catch(() => undefined)
+          if (playAfterSelect) void el.play().catch(() => undefined)
         }}
         onPlay={() => setPlaying(true)}
         onPause={(event) => {
@@ -336,16 +336,16 @@ export function Player({
           onChange={(event) => seekTo(Number(event.target.value))}
         />
         <div className="pointer-events-auto flex items-center gap-1.5 text-white">
-          <IconButton label={t(lang, "previous")} onClick={() => void goNeighbor(onPrevious)}>
+          <IconButton label={t(lang, "previous")} onClick={() => void skipOrReplay(onPrevious)}>
             <ChevronLeft className="rtl:rotate-180" />
           </IconButton>
           <IconButton label={t(lang, playing ? "pause" : "play")} onClick={() => void togglePlay()}>
             {playing ? <Pause /> : <Play className="ms-px" />}
           </IconButton>
-          <IconButton label={t(lang, "next")} onClick={() => void goNeighbor(onNext)}>
+          <IconButton label={t(lang, "next")} onClick={() => void skipOrReplay(onNext)}>
             <ChevronRight className="rtl:rotate-180" />
           </IconButton>
-          <IconButton label={t(lang, "watched")} onClick={() => void markDone()}>
+          <IconButton label={t(lang, "watched")} onClick={() => void markWatched()}>
             <Check className={watched ? "text-emerald-300" : undefined} />
           </IconButton>
           <span className="min-w-20 px-1 font-medium text-white/85 tabular-nums" dir="ltr">
