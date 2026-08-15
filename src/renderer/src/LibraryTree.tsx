@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type MutableRefObject, type ReactNode } from "react"
-import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, Loader2, Plus } from "lucide-react"
+import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import type {
   AppLanguage,
   Job,
@@ -41,6 +41,8 @@ type Props = {
   snapshot: LibrarySnapshot
   lang: AppLanguage
   onAddVideos: (sessionId: string, picker: () => Promise<string[]>) => void
+  onRenameSession: (session: SessionRecord) => void
+  onDeleteSession: (session: SessionRecord) => void
 }
 
 const libraryDrop = {
@@ -52,7 +54,7 @@ const libraryDrop = {
     window.doorei.call("moveVideo", videoId, toSessionId) as Promise<void>
 }
 
-export function LibraryTree({ snapshot, lang, onAddVideos }: Props) {
+export function LibraryTree({ snapshot, lang, onAddVideos, onRenameSession, onDeleteSession }: Props) {
   const [openSessions, setOpenSessions] = useState<Set<string>>(() => {
     const initial = new Set<string>()
     const current = snapshot.videos.find((video) => video.id === snapshot.selectedVideoId)
@@ -164,6 +166,8 @@ export function LibraryTree({ snapshot, lang, onAddVideos }: Props) {
                     dropTarget={dropTarget}
                     onToggle={() => toggleSession(session.id)}
                     onAddVideos={onAddVideos}
+                    onRenameSession={() => onRenameSession(session)}
+                    onDeleteSession={() => onDeleteSession(session)}
                     onDragged={setDragged}
                     onDropTarget={setDropTarget}
                     placementFor={placementFor}
@@ -191,6 +195,8 @@ function SessionBranch({
   dropTarget,
   onToggle,
   onAddVideos,
+  onRenameSession,
+  onDeleteSession,
   onDragged,
   onDropTarget,
   placementFor,
@@ -205,6 +211,8 @@ function SessionBranch({
   dropTarget: TreeDropTarget | null
   onToggle: () => void
   onAddVideos: Props["onAddVideos"]
+  onRenameSession: () => void
+  onDeleteSession: () => void
   onDragged: (dragged: TreeDragged | null) => void
   onDropTarget: (dropTarget: TreeDropTarget | null) => void
   placementFor: (
@@ -311,6 +319,36 @@ function SessionBranch({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          draggable={false}
+          title={t(lang, "renameSession")}
+          aria-label={t(lang, "renameSession")}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={onRenameSession}
+          className={cn(
+            "shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100",
+            open && "opacity-70"
+          )}
+        >
+          <Pencil />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          draggable={false}
+          title={t(lang, "deleteSession")}
+          aria-label={t(lang, "deleteSession")}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={onDeleteSession}
+          className={cn(
+            "shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100",
+            open && "opacity-70"
+          )}
+        >
+          <Trash2 />
+        </Button>
       </div>
       {open ? (
         <div

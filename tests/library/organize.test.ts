@@ -42,6 +42,48 @@ describe("reorder, move, delete, and folder relink", () => {
     expect(library.snapshot().caption?.segments[0]?.text).toBe("hello")
   })
 
+  test("a Session can be renamed", async () => {
+    const { library } = await unlockedLibrary()
+    await library.createCourse("C")
+    const sessionId = await library.createSession({ name: "Day 1" })
+    await library.renameSession(sessionId, "Week 1")
+    expect(library.snapshot().sessions[0]?.name).toBe("Week 1")
+  })
+
+  test("deleting an empty Session leaves the other Sessions", async () => {
+    const { library } = await unlockedLibrary()
+    await library.createCourse("C")
+    const first = await library.createSession({ name: "First" })
+    await library.createSession({ name: "Second" })
+    await library.deleteSession(first)
+    expect(library.snapshot().sessions.map((session) => session.name)).toEqual(["Second"])
+  })
+
+  test("deleting a Session deletes its Videos and Notes and leaves the rest of the Course", async () => {
+    const media = memoryMedia({
+      existing: ["/keep.mp4", "/drop.mp4"],
+      sidecars: { "/drop.mp4": "/drop.srt" },
+      files: {
+        "/drop.srt": `1\n00:00:01,000 --> 00:00:02,000\ngone\n`
+      }
+    })
+    const { library } = await unlockedLibrary({ media })
+    await library.createCourse("C")
+    const keepSession = await library.createSession({ name: "Keep" })
+    const dropSession = await library.createSession({ name: "Drop" })
+    const [keepId] = await library.addVideos({ sessionId: keepSession, paths: ["/keep.mp4"] })
+    const [dropId] = await library.addVideos({ sessionId: dropSession, paths: ["/drop.mp4"] })
+    await library.selectVideo(dropId)
+    await library.addNote({ text: "will vanish" })
+    await library.deleteSession(dropSession)
+    const snap = library.snapshot()
+    expect(snap.sessions.map((session) => session.name)).toEqual(["Keep"])
+    expect(snap.videos.map((video) => video.id)).toEqual([keepId])
+    expect(snap.notes).toEqual([])
+    expect(snap.selectedVideoId).toBeNull()
+    expect(snap.caption).toBeNull()
+  })
+
   test("relinking a moved folder updates every Video under that prefix", async () => {
     const existing = new Set(["/old/day/a.mp4", "/old/day/b.mp4"])
     const media = {

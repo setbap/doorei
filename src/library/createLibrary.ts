@@ -275,6 +275,21 @@ export function createLibrary(deps: LibraryDeps): Library {
     return video
   }
 
+  function removeVideoRecord(videoId: string): void {
+    const courseId = courseIdOfVideo(videoId)
+    state.videos = state.videos.filter((video) => video.id !== videoId)
+    state.notes = state.notes.filter((note) => note.videoId !== videoId)
+    delete state.captions[videoId]
+    delete state.improvedCaptions[videoId]
+    delete state.summaries[videoId]
+    delete state.embeddings[videoId]
+    state.jobs = state.jobs.filter((job) => job.videoId !== videoId)
+    if (state.selectedVideoId === videoId) {
+      state.selectedVideoId = null
+    }
+    if (courseId) saveVideoEmbeddings(deps.dataDir, courseId, videoId, [])
+  }
+
   function activeConversation() {
     if (!state.selectedCourseId) return null
     const activeId = state.activeConversationByCourse[state.selectedCourseId]
@@ -810,6 +825,30 @@ export function createLibrary(deps: LibraryDeps): Library {
       emit()
       return sessionId
     },
+    async renameSession(sessionId, name) {
+      assertUsable()
+      const session = state.sessions.find((item) => item.id === sessionId)
+      if (!session) throw new Error("Session not found")
+      session.name = name
+      emit()
+    },
+    async deleteSession(sessionId) {
+      assertUsable()
+      const session = state.sessions.find((item) => item.id === sessionId)
+      if (!session) throw new Error("Session not found")
+      const videoIds = state.videos
+        .filter((video) => video.sessionId === sessionId)
+        .map((video) => video.id)
+      for (const videoId of videoIds) removeVideoRecord(videoId)
+      state.sessions = state.sessions.filter((item) => item.id !== sessionId)
+      state.sessions
+        .filter((item) => item.courseId === session.courseId)
+        .sort((a, b) => a.position - b.position)
+        .forEach((item, index) => {
+          item.position = index
+        })
+      emit()
+    },
     async reorderSessions(orderedIds) {
       assertUsable()
       orderedIds.forEach((sessionId, index) => {
@@ -884,18 +923,7 @@ export function createLibrary(deps: LibraryDeps): Library {
     },
     async deleteVideo(videoId) {
       assertUsable()
-      const courseId = courseIdOfVideo(videoId)
-      state.videos = state.videos.filter((video) => video.id !== videoId)
-      state.notes = state.notes.filter((note) => note.videoId !== videoId)
-      delete state.captions[videoId]
-      delete state.improvedCaptions[videoId]
-      delete state.summaries[videoId]
-      delete state.embeddings[videoId]
-      state.jobs = state.jobs.filter((job) => job.videoId !== videoId)
-      if (state.selectedVideoId === videoId) {
-        state.selectedVideoId = null
-      }
-      if (courseId) saveVideoEmbeddings(deps.dataDir, courseId, videoId, [])
+      removeVideoRecord(videoId)
       emit()
     },
     async relinkVideo(videoId, path) {

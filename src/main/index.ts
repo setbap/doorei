@@ -93,6 +93,8 @@ const LIBRARY_METHODS = new Set([
   "deleteCourse",
   "selectCourse",
   "createSession",
+  "renameSession",
+  "deleteSession",
   "reorderSessions",
   "addVideos",
   "reorderVideos",

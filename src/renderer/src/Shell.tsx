@@ -21,6 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -64,6 +65,8 @@ type PromptState =
   | { kind: "course" }
   | { kind: "rename" }
   | { kind: "session" }
+  | { kind: "rename-session"; id: string; name: string }
+  | { kind: "delete-session"; id: string }
   | { kind: "note"; id: string; text: string }
   | { kind: "from-folder"; toDir: string }
   | { kind: "spoken"; sessionId: string; paths: string[] }
@@ -339,6 +342,23 @@ export function Shell({ snapshot }: Props) {
                   onAddVideos={(sessionId, picker) =>
                     void addVideos(picker, sessionId)
                   }
+                  onRenameSession={(session) =>
+                    setPrompt({
+                      kind: "rename-session",
+                      id: session.id,
+                      name: session.name,
+                    })
+                  }
+                  onDeleteSession={(session) => {
+                    const empty = !snapshot.videos.some(
+                      (video) => video.sessionId === session.id
+                    );
+                    if (empty) {
+                      void window.doorei.call("deleteSession", session.id);
+                      return;
+                    }
+                    setPrompt({ kind: "delete-session", id: session.id });
+                  }}
                 />
               </ScrollArea>
               <Separator />
@@ -611,6 +631,58 @@ export function Shell({ snapshot }: Props) {
           })
         }
       />
+      <PromptDialog
+        open={prompt?.kind === "rename-session"}
+        title={t(lang, "renameSession")}
+        label={t(lang, "sessionName")}
+        submitLabel={t(lang, "save")}
+        cancelLabel={t(lang, "cancel")}
+        defaultValue={prompt?.kind === "rename-session" ? prompt.name : ""}
+        onOpenChange={(open) => {
+          if (!open) setPrompt(null);
+        }}
+        onSubmit={(name) => {
+          if (prompt?.kind === "rename-session") {
+            void window.doorei.call("renameSession", prompt.id, name);
+          }
+        }}
+      />
+      <Dialog
+        open={prompt?.kind === "delete-session"}
+        onOpenChange={(open) => {
+          if (!open) setPrompt(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t(lang, "deleteSession")}</DialogTitle>
+            <DialogDescription>
+              {t(lang, "deleteSessionWarning")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPrompt(null)}
+            >
+              {t(lang, "cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (prompt?.kind === "delete-session") {
+                  void window.doorei.call("deleteSession", prompt.id);
+                }
+                setPrompt(null);
+              }}
+            >
+              {t(lang, "deleteSession")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <PromptDialog
         open={prompt?.kind === "note"}
         title={t(lang, "editNote")}

@@ -195,6 +195,8 @@ export type Library = {
   selectCourse(id: string): Promise<void>
 
   createSession(input: { name: string; date?: string }): Promise<string>
+  renameSession(id: string, name: string): Promise<void>
+  deleteSession(id: string): Promise<void>
   reorderSessions(orderedIds: string[]): Promise<void>
 
   addVideos(input: {

@@ -42,6 +42,10 @@ const en: Dict = {
   courseName: "Course name",
   newSession: "New Session",
   sessionName: "Session name",
+  renameSession: "Rename Session",
+  deleteSession: "Delete Session",
+  deleteSessionWarning:
+    "This Session has Videos. Deleting it removes those Videos from the Library, with their Captions, Notes, and Summaries. Files on disk are not deleted.",
   optionalDate: "Date (optional)",
   addVideos: "Add Videos",
   addFolder: "Add folder",
@@ -192,6 +196,10 @@ const fa: Dict = {
   courseName: "نام دوره",
   newSession: "نشست تازه",
   sessionName: "نام نشست",
+  renameSession: "تغییر نام نشست",
+  deleteSession: "حذف نشست",
+  deleteSessionWarning:
+    "این نشست ویدیو دارد. حذف آن، آن ویدیوها را با کپشن، یادداشت و خلاصه‌شان از کتابخانه برمی‌دارد. فایل‌ها روی دیسک حذف نمی‌شوند.",
   optionalDate: "تاریخ (اختیاری)",
   addVideos: "افزودن ویدیو",
   addFolder: "افزودن پوشه",
