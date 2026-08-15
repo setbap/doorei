@@ -173,6 +173,7 @@ export type Library = {
 
   createCourse(name: string): Promise<string>
   renameCourse(id: string, name: string): Promise<void>
+  deleteCourse(id: string): Promise<void>
   selectCourse(id: string): Promise<void>
 
   createSession(input: { name: string; date?: string }): Promise<string>
@@ -194,6 +195,7 @@ export type Library = {
   setWatched(videoId: string, watched: boolean): Promise<void>
   markEnded(): Promise<void>
   nextVideoId(): string | null
+  previousVideoId(): string | null
 
   addNote(input: { text: string; timestampSeconds?: number | null }): Promise<string>
   editNote(id: string, text: string): Promise<void>

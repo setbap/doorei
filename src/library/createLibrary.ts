@@ -1,12 +1,17 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
 import { jsonrepair } from "jsonrepair"
 import { REQUIRED_MODELS } from "./models.js"
 import { captionFromSidecar } from "./parseCaption.js"
+import {
+  deleteCourseData,
+  loadCourseEmbeddings,
+  loadLibrary,
+  saveLibrary,
+  savePlayback,
+  saveVideoEmbeddings,
+  type LibraryState
+} from "./persist.js"
 import type {
-  Activity,
   AppLanguage,
-  AskAnswer,
   Caption,
   CaptionSegment,
   Hit,
@@ -14,7 +19,6 @@ import type {
   Library,
   LibraryDeps,
   LibrarySnapshot,
-  Note,
   PlayerSettings,
   ProviderConfig,
   SearchScope,
@@ -46,76 +50,12 @@ const DEFAULT_SETTINGS: PlayerSettings = {
   captionBackground: "#000000b8"
 }
 
-type State = {
-  appLanguage: AppLanguage | null
-  outputLanguage: AppLanguage | null
-  provider: ProviderConfig | null
-  spokenLanguageDefault: SpokenLanguage
-  settings: PlayerSettings
-  prompts: { improve: string; summary: string; ask: string }
-  selectedCourseId: string | null
-  selectedVideoId: string | null
-  activity: Activity
-  gatePassed: boolean
-  courses: { id: string; name: string }[]
-  sessions: { id: string; courseId: string; name: string; date: string | null; position: number }[]
-  videos: VideoRecord[]
-  notes: Note[]
-  captions: Record<string, Caption>
-  improvedCaptions: Record<string, Caption>
-  summaries: Record<string, string>
-  embeddings: Record<string, { segmentIndex: number; vector: number[]; kind: "caption" | "note"; noteId?: string }[]>
-  jobs: Job[]
-  searchHits: Hit[]
-  askAnswer: AskAnswer | null
-  lastAskError: string | null
-}
-
-function initialState(): State {
-  return {
-    appLanguage: null,
-    outputLanguage: null,
-    provider: null,
-    spokenLanguageDefault: "fa",
-    settings: { ...DEFAULT_SETTINGS },
-    prompts: { ...DEFAULT_PROMPTS },
-    selectedCourseId: null,
-    selectedVideoId: null,
-    activity: "summary",
-    gatePassed: false,
-    courses: [],
-    sessions: [],
-    videos: [],
-    notes: [],
-    captions: {},
-    improvedCaptions: {},
-    summaries: {},
-    embeddings: {},
-    jobs: [],
-    searchHits: [],
-    askAnswer: null,
-    lastAskError: null
-  }
-}
+type State = LibraryState
 
 function loadState(dataDir: string): State {
-  try {
-    const raw = readFileSync(join(dataDir, "library.json"), "utf8")
-    const loaded = JSON.parse(raw) as Partial<State>
-    return {
-      ...initialState(),
-      ...loaded,
-      settings: { ...DEFAULT_SETTINGS, ...loaded.settings },
-      prompts: migratePrompts(loaded.prompts)
-    }
-  } catch {
-    return initialState()
-  }
-}
-
-function saveState(dataDir: string, state: State): void {
-  mkdirSync(dataDir, { recursive: true })
-  writeFileSync(join(dataDir, "library.json"), JSON.stringify(state), "utf8")
+  const loaded = loadLibrary(dataDir)
+  loaded.prompts = migratePrompts(loaded.prompts)
+  return loaded
 }
 
 function id(prefix: string): string {
@@ -132,9 +72,7 @@ function unwrapFence(text: string): string {
   return (fenced ? fenced[1] : trimmed).trim()
 }
 
-function migratePrompts(
-  loaded: Partial<State["prompts"]> | undefined
-): State["prompts"] {
+function migratePrompts(loaded: Partial<State["prompts"]> | undefined): State["prompts"] {
   const prompts = { ...DEFAULT_PROMPTS, ...loaded }
   if (!loaded?.improve || loaded.improve === LEGACY_IMPROVE_PROMPT) {
     prompts.improve = DEFAULT_PROMPTS.improve
@@ -228,8 +166,22 @@ export function createLibrary(deps: LibraryDeps): Library {
   const listeners = new Set<() => void>()
 
   function emit(): void {
-    saveState(deps.dataDir, state)
+    saveLibrary(deps.dataDir, state)
     for (const listener of listeners) listener()
+  }
+
+  function notify(): void {
+    for (const listener of listeners) listener()
+  }
+
+  function courseIdOfVideo(videoId: string): string | null {
+    const video = state.videos.find((item) => item.id === videoId)
+    if (!video) return null
+    return state.sessions.find((session) => session.id === video.sessionId)?.courseId ?? null
+  }
+
+  function loadEmbeddingsForCourse(courseId: string): void {
+    state.embeddings = loadCourseEmbeddings(deps.dataDir, courseId)
   }
 
   function modelsComplete(): boolean {
@@ -313,6 +265,10 @@ export function createLibrary(deps: LibraryDeps): Library {
   }
 
   async function collectHits(input: { text: string; scope: SearchScope }): Promise<Hit[]> {
+    for (const video of videosInScope(input.scope)) {
+      const courseId = courseIdOfVideo(video.id)
+      if (courseId && !(video.id in state.embeddings)) loadEmbeddingsForCourse(courseId)
+    }
     const lexical = lexicalSearch(input)
     const hits = [...lexical]
     const seen = new Set(lexical.map((hit) => `${hit.kind}:${hit.videoId}:${hit.startSeconds}:${hit.text}`))
@@ -564,6 +520,8 @@ export function createLibrary(deps: LibraryDeps): Library {
         noteId: note.id
       }))
     ]
+    const courseId = courseIdOfVideo(job.videoId)
+    if (courseId) saveVideoEmbeddings(deps.dataDir, courseId, job.videoId, state.embeddings[job.videoId] ?? [])
     job.status = "complete"
     job.progress = 1
     emit()
@@ -761,6 +719,32 @@ export function createLibrary(deps: LibraryDeps): Library {
       course.name = name
       emit()
     },
+    async deleteCourse(courseId) {
+      assertUsable()
+      const sessionIds = new Set(
+        state.sessions.filter((session) => session.courseId === courseId).map((session) => session.id)
+      )
+      const videoIds = new Set(
+        state.videos.filter((video) => sessionIds.has(video.sessionId)).map((video) => video.id)
+      )
+      state.videos = state.videos.filter((video) => !videoIds.has(video.id))
+      state.notes = state.notes.filter((note) => !videoIds.has(note.videoId))
+      state.jobs = state.jobs.filter((job) => !videoIds.has(job.videoId))
+      for (const videoId of videoIds) {
+        delete state.captions[videoId]
+        delete state.improvedCaptions[videoId]
+        delete state.summaries[videoId]
+        delete state.embeddings[videoId]
+      }
+      state.sessions = state.sessions.filter((session) => session.courseId !== courseId)
+      state.courses = state.courses.filter((course) => course.id !== courseId)
+      if (state.selectedCourseId === courseId) {
+        state.selectedCourseId = state.courses[0]?.id ?? null
+        state.selectedVideoId = null
+      }
+      deleteCourseData(deps.dataDir, courseId)
+      emit()
+    },
     async selectCourse(courseId) {
       assertUsable()
       if (!state.courses.some((course) => course.id === courseId)) {
@@ -768,6 +752,7 @@ export function createLibrary(deps: LibraryDeps): Library {
       }
       state.selectedCourseId = courseId
       state.selectedVideoId = null
+      loadEmbeddingsForCourse(courseId)
       emit()
     },
     async createSession(input) {
@@ -844,13 +829,23 @@ export function createLibrary(deps: LibraryDeps): Library {
       if (!state.sessions.some((session) => session.id === toSessionId)) {
         throw new Error("Session not found")
       }
+      const fromCourseId = courseIdOfVideo(videoId)
       video.sessionId = toSessionId
       video.position = state.videos.filter((item) => item.sessionId === toSessionId && item.id !== videoId)
         .length
+      const toCourseId = courseIdOfVideo(videoId)
+      if (fromCourseId && toCourseId && fromCourseId !== toCourseId) {
+        const rows =
+          state.embeddings[videoId] ?? loadCourseEmbeddings(deps.dataDir, fromCourseId)[videoId] ?? []
+        saveVideoEmbeddings(deps.dataDir, toCourseId, videoId, rows)
+        saveVideoEmbeddings(deps.dataDir, fromCourseId, videoId, [])
+        state.embeddings[videoId] = rows
+      }
       emit()
     },
     async deleteVideo(videoId) {
       assertUsable()
+      const courseId = courseIdOfVideo(videoId)
       state.videos = state.videos.filter((video) => video.id !== videoId)
       state.notes = state.notes.filter((note) => note.videoId !== videoId)
       delete state.captions[videoId]
@@ -861,6 +856,7 @@ export function createLibrary(deps: LibraryDeps): Library {
       if (state.selectedVideoId === videoId) {
         state.selectedVideoId = null
       }
+      if (courseId) saveVideoEmbeddings(deps.dataDir, courseId, videoId, [])
       emit()
     },
     async relinkVideo(videoId, path) {
@@ -891,14 +887,18 @@ export function createLibrary(deps: LibraryDeps): Library {
       if (!video) throw new Error("Video not found")
       state.selectedVideoId = videoId
       const session = state.sessions.find((item) => item.id === video.sessionId)
-      if (session) state.selectedCourseId = session.courseId
+      if (session) {
+        state.selectedCourseId = session.courseId
+        loadEmbeddingsForCourse(session.courseId)
+      }
       emit()
     },
     async setPlaybackPosition(seconds) {
       assertUsable()
       const video = selectedVideo()
       video.playbackPositionSeconds = seconds
-      emit()
+      savePlayback(deps.dataDir, state, video.id)
+      notify()
     },
     async setWatched(videoId, watched) {
       assertUsable()
@@ -939,6 +939,31 @@ export function createLibrary(deps: LibraryDeps): Library {
         .filter((video) => video.sessionId === nextSession.id)
         .sort((a, b) => a.position - b.position)
       return nextVideos[0]?.id ?? null
+    },
+    previousVideoId() {
+      assertUsable()
+      if (!state.selectedVideoId) return null
+      const current = state.videos.find((item) => item.id === state.selectedVideoId)
+      if (!current) return null
+      const session = state.sessions.find((item) => item.id === current.sessionId)
+      if (!session) return null
+      const inSession = state.videos
+        .filter((video) => video.sessionId === current.sessionId)
+        .sort((a, b) => a.position - b.position)
+      const index = inSession.findIndex((video) => video.id === current.id)
+      if (index > 0) {
+        return inSession[index - 1]?.id ?? null
+      }
+      const courseSessions = state.sessions
+        .filter((item) => item.courseId === session.courseId)
+        .sort((a, b) => a.position - b.position)
+      const sessionIndex = courseSessions.findIndex((item) => item.id === session.id)
+      const previousSession = courseSessions[sessionIndex - 1]
+      if (!previousSession) return null
+      const previousVideos = state.videos
+        .filter((video) => video.sessionId === previousSession.id)
+        .sort((a, b) => a.position - b.position)
+      return previousVideos[previousVideos.length - 1]?.id ?? null
     },
     async addNote(input) {
       assertUsable()
