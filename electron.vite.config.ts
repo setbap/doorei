@@ -8,7 +8,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        external: ["parakeet.js"]
+        external: ["parakeet.js", "onnxruntime-node"]
       }
     }
   },

@@ -1,10 +1,10 @@
 import { execFile } from "node:child_process"
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { readdirSync } from "node:fs"
 import { join } from "node:path"
 import { promisify } from "node:util"
 import { REQUIRED_MODELS, type CaptionSegment, type SpeechRecognizer } from "../library/index.js"
 import { modelDir } from "./modelStore.js"
+import { createOnnxShenavaGraph, loadShenavaSidecars, runShenavaPcm } from "./shenava.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -98,41 +98,14 @@ async function runShenava(
   pcm: Float32Array,
   onSegment: (segment: CaptionSegment) => void | Promise<void>
 ): Promise<void> {
-  const wavPath = writeTempWav(pcm)
   try {
-    const transformers = await import("@huggingface/transformers")
-    const asr = await transformers.pipeline("automatic-speech-recognition", modelPath, {
-      local_files_only: true
-    })
-    const result = (await asr(wavPath, { return_timestamps: true })) as {
-      text?: string
-      chunks?: { text: string; timestamp: [number, number] }[]
-    }
-    if (result.chunks?.length) {
-      for (const chunk of result.chunks) {
-        const text = chunk.text?.trim()
-        if (!text) continue
-        await onSegment({
-          startSeconds: chunk.timestamp?.[0] ?? 0,
-          endSeconds: chunk.timestamp?.[1] ?? 0,
-          text
-        })
-      }
-      return
-    }
-    if (result.text?.trim()) {
-      await onSegment({
-        startSeconds: 0,
-        endSeconds: pcm.length / 16000,
-        text: result.text.trim()
-      })
-    }
+    const { tokens, filters } = loadShenavaSidecars(modelPath)
+    const graph = await createOnnxShenavaGraph(modelPath)
+    await runShenavaPcm(pcm, { graph, tokens, filters }, onSegment)
   } catch (error) {
     throw new Error(
       `Shenava Captioning failed: ${error instanceof Error ? error.message : String(error)}`
     )
-  } finally {
-    rmSync(wavPath, { force: true })
   }
 }
 
@@ -142,33 +115,6 @@ function firstExisting(dir: string, names: string[]): string | null {
     if (files.includes(name)) return join(dir, name)
   }
   return null
-}
-
-function writeTempWav(pcm: Float32Array): string {
-  const dir = mkdtempSync(join(tmpdir(), "doorei-asr-"))
-  const path = join(dir, "audio.wav")
-  const dataSize = pcm.length * 2
-  const header = Buffer.alloc(44)
-  const int16 = Buffer.alloc(dataSize)
-  for (let i = 0; i < pcm.length; i += 1) {
-    const s = Math.max(-1, Math.min(1, pcm[i] ?? 0))
-    int16.writeInt16LE(Math.round(s * 32767), i * 2)
-  }
-  header.write("RIFF", 0)
-  header.writeUInt32LE(36 + dataSize, 4)
-  header.write("WAVE", 8)
-  header.write("fmt ", 12)
-  header.writeUInt32LE(16, 16)
-  header.writeUInt16LE(1, 20)
-  header.writeUInt16LE(1, 22)
-  header.writeUInt32LE(16000, 24)
-  header.writeUInt32LE(32000, 28)
-  header.writeUInt16LE(2, 32)
-  header.writeUInt16LE(16, 34)
-  header.write("data", 36)
-  header.writeUInt32LE(dataSize, 40)
-  writeFileSync(path, Buffer.concat([header, int16]))
-  return path
 }
 
 function pathToFileUrl(path: string): string {
