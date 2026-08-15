@@ -340,24 +340,9 @@ export function createLibrary(deps: LibraryDeps): Library {
             score
           })
         }
-        if (item.kind === "note" && item.noteId) {
-          const note = state.notes.find((candidate) => candidate.id === item.noteId)
-          if (!note) continue
-          const key = `note:${video.id}:${note.timestampSeconds}:${note.text}`
-          if (seen.has(key)) continue
-          seen.add(key)
-          hits.push({
-            videoId: video.id,
-            sessionId: video.sessionId,
-            startSeconds: note.timestampSeconds,
-            text: note.text,
-            kind: "note",
-            score
-          })
-        }
       }
     }
-    return hits
+    return hits.slice().sort((a, b) => b.score - a.score)
   }
 
   function lexicalSearch(input: { text: string; scope: SearchScope }): Hit[] {
