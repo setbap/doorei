@@ -24,11 +24,17 @@ import type {
 
 const DEFAULT_PROMPTS = {
   improve:
-    "Rewrite this Caption with corrected wording. Keep the same timestamps and the same Spoken language. Fix technical terms. Return only a JSON array of {startSeconds, endSeconds, text}.",
+    "Rewrite this Caption with corrected wording. Keep the same Spoken language. Fix technical terms. Return only a JSON array of strings in the same order, one rewritten text per input. Do not change the number of items. Do not include timestamps.",
   summary:
     "Write a Summary of this Video in the requested Output language so the learner can re-read what it covered without watching. Use Markdown (headings, lists, bold). Return only the Markdown, with no wrapping code fence.",
   ask: "Answer the question using only the provided Hits. Cite those Hits. Write in the requested Output language."
 }
+
+const LEGACY_IMPROVE_PROMPT =
+  "Rewrite this Caption with corrected wording. Keep the same timestamps and the same Spoken language. Fix technical terms. Return only a JSON array of {startSeconds, endSeconds, text}."
+
+const IMPROVE_CHUNK_SEGMENTS = 32
+const IMPROVE_CHUNK_CHARS = 4000
 
 const DEFAULT_SETTINGS: PlayerSettings = {
   autoplay: false,
@@ -99,7 +105,8 @@ function loadState(dataDir: string): State {
     return {
       ...initialState(),
       ...loaded,
-      settings: { ...DEFAULT_SETTINGS, ...loaded.settings }
+      settings: { ...DEFAULT_SETTINGS, ...loaded.settings },
+      prompts: migratePrompts(loaded.prompts)
     }
   } catch {
     return initialState()
@@ -125,14 +132,17 @@ function unwrapFence(text: string): string {
   return (fenced ? fenced[1] : trimmed).trim()
 }
 
-function asCaptionSegments(parsed: unknown): CaptionSegment[] {
-  if (!Array.isArray(parsed)) {
-    throw new Error("Provider returned invalid Improved Caption")
+function migratePrompts(
+  loaded: Partial<State["prompts"]> | undefined
+): State["prompts"] {
+  const prompts = { ...DEFAULT_PROMPTS, ...loaded }
+  if (!loaded?.improve || loaded.improve === LEGACY_IMPROVE_PROMPT) {
+    prompts.improve = DEFAULT_PROMPTS.improve
   }
-  return parsed as CaptionSegment[]
+  return prompts
 }
 
-function parseImprovedSegments(raw: string): CaptionSegment[] {
+function parseJsonArray(raw: string): unknown[] {
   const unwrapped = unwrapFence(raw)
   const start = unwrapped.indexOf("[")
   const end = unwrapped.lastIndexOf("]")
@@ -143,12 +153,12 @@ function parseImprovedSegments(raw: string): CaptionSegment[] {
   let lastError: unknown
   for (const candidate of candidates) {
     try {
-      return asCaptionSegments(JSON.parse(candidate))
+      return asJsonArray(JSON.parse(candidate))
     } catch (error) {
       lastError = error
     }
     try {
-      return asCaptionSegments(JSON.parse(jsonrepair(candidate)))
+      return asJsonArray(JSON.parse(jsonrepair(candidate)))
     } catch (error) {
       lastError = error
     }
@@ -156,6 +166,45 @@ function parseImprovedSegments(raw: string): CaptionSegment[] {
   throw lastError instanceof Error
     ? lastError
     : new Error("Provider returned invalid Improved Caption")
+}
+
+function asJsonArray(parsed: unknown): unknown[] {
+  if (!Array.isArray(parsed)) {
+    throw new Error("Provider returned invalid Improved Caption")
+  }
+  return parsed
+}
+
+function parseImprovedTexts(raw: string): string[] {
+  return parseJsonArray(raw).map((item, index) => {
+    if (typeof item === "string") return item
+    if (item && typeof item === "object" && "text" in item) {
+      const text = (item as { text: unknown }).text
+      if (typeof text === "string") return text
+    }
+    throw new Error(`Provider returned invalid Improved Caption at ${index}`)
+  })
+}
+
+function chunkCaption(segments: CaptionSegment[]): CaptionSegment[][] {
+  const chunks: CaptionSegment[][] = []
+  let current: CaptionSegment[] = []
+  let chars = 0
+  for (const segment of segments) {
+    const extra = segment.text.length + 4
+    if (
+      current.length > 0 &&
+      (current.length >= IMPROVE_CHUNK_SEGMENTS || chars + extra > IMPROVE_CHUNK_CHARS)
+    ) {
+      chunks.push(current)
+      current = []
+      chars = 0
+    }
+    current.push(segment)
+    chars += extra
+  }
+  if (current.length > 0) chunks.push(current)
+  return chunks
 }
 
 function cosine(a: number[], b: number[]): number {
@@ -373,6 +422,7 @@ export function createLibrary(deps: LibraryDeps): Library {
       state.jobs.push(job)
     } else {
       job.status = "queued"
+      job.progress = 0
       job.error = null
     }
     return job
@@ -533,27 +583,43 @@ export function createLibrary(deps: LibraryDeps): Library {
     if (!video) throw new Error("Video not found")
     const caption = state.captions[job.videoId]
     if (!caption) throw new Error("No Caption to improve")
-    const raw = await deps.providerClient.complete({
-      system: state.prompts.improve,
-      prompt: `Spoken language: ${video.spokenLanguage}\nRewrite this Caption as JSON.\n${JSON.stringify(caption.segments)}`
-    })
-    let parsed: CaptionSegment[]
-    try {
-      parsed = parseImprovedSegments(raw)
-    } catch (error) {
+    const chunks = chunkCaption(caption.segments)
+    const improved: CaptionSegment[] = []
+    let parsedAny = false
+    let lastError: Error | null = null
+    for (const [chunkIndex, chunk] of chunks.entries()) {
+      job.progress = chunkIndex / chunks.length
+      emit()
+      const raw = await deps.providerClient.complete({
+        system: state.prompts.improve,
+        prompt: `Spoken language: ${video.spokenLanguage}\nRewrite these Caption texts as JSON. Return a JSON array of strings, same order, same count.\n${JSON.stringify(chunk.map((segment) => segment.text))}`
+      })
+      let texts: string[]
+      try {
+        texts = parseImprovedTexts(raw)
+        parsedAny = true
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+        improved.push(...chunk)
+        continue
+      }
+      for (const [index, segment] of chunk.entries()) {
+        improved.push({
+          startSeconds: segment.startSeconds,
+          endSeconds: segment.endSeconds,
+          text: texts[index] ?? segment.text
+        })
+      }
+    }
+    if (!parsedAny) {
       job.status = "failed"
-      job.error = error instanceof Error ? error.message : String(error)
+      job.error = lastError?.message ?? "Provider returned invalid Improved Caption"
       emit()
       upsertJob("summary", job.videoId)
       kick()
       return
     }
-    const segments = parsed.map((segment, index) => ({
-      startSeconds: segment.startSeconds ?? caption.segments[index]?.startSeconds ?? 0,
-      endSeconds: segment.endSeconds ?? caption.segments[index]?.endSeconds ?? 0,
-      text: segment.text
-    }))
-    state.improvedCaptions[job.videoId] = { source: caption.source, segments }
+    state.improvedCaptions[job.videoId] = { source: caption.source, segments: improved }
     job.status = "complete"
     job.progress = 1
     emit()

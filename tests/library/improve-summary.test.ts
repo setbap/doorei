@@ -333,4 +333,90 @@ describe("Improved Caption and Summary", () => {
     await library.createCourse("C")
     await expect(library.generateMissingSummaries()).rejects.toThrow("Provider is not configured")
   })
+
+  test("a long Caption is improved in several Provider calls and keeps original timestamps", async () => {
+    const body = numberedSrt(80)
+    let improveCalls = 0
+    const providerClient: ProviderClient = {
+      async complete({ prompt }) {
+        if (prompt.includes("JSON")) {
+          improveCalls += 1
+          const texts = JSON.parse(prompt.slice(prompt.lastIndexOf("\n[") + 1)) as string[]
+          return JSON.stringify(texts.map((text) => text.replace("original", "improved")))
+        }
+        return "خلاصه"
+      }
+    }
+    const { library } = await longCaptionLibrary(providerClient, body)
+    await library.createCourse("C")
+    const sessionId = await library.createSession({ name: "S" })
+    const [videoId] = await library.addVideos({ sessionId, paths: ["/lesson.mp4"] })
+    await library.selectVideo(videoId)
+    await waitUntil(() => library.snapshot().caption !== null, 3000)
+    await library.configureProvider({ kind: "openai", url: "http://x/v1" })
+    await library.generateSummary(videoId)
+    await waitUntil(() => library.snapshot().improvedCaption !== null, 3000)
+    expect(improveCalls).toBeGreaterThan(1)
+    const segments = library.snapshot().improvedCaption!.segments
+    expect(segments).toHaveLength(80)
+    expect(segments[0]?.text).toContain("improved 0")
+    expect(segments[79]?.text).toContain("improved 79")
+    expect(segments[0]?.startSeconds).toBe(0)
+    expect(segments[1]?.startSeconds).toBe(2)
+  })
+
+  test("a broken Improve chunk keeps original text there and still completes the rest", async () => {
+    const body = numberedSrt(80)
+    let improveCalls = 0
+    const providerClient: ProviderClient = {
+      async complete({ prompt }) {
+        if (prompt.includes("JSON")) {
+          improveCalls += 1
+          if (improveCalls === 2) return "this is not JSON at all"
+          const texts = JSON.parse(prompt.slice(prompt.lastIndexOf("\n[") + 1)) as string[]
+          return JSON.stringify(texts.map((text) => text.replace("original", "improved")))
+        }
+        return "خلاصه"
+      }
+    }
+    const { library } = await longCaptionLibrary(providerClient, body)
+    await library.createCourse("C")
+    const sessionId = await library.createSession({ name: "S" })
+    const [videoId] = await library.addVideos({ sessionId, paths: ["/lesson.mp4"] })
+    await library.selectVideo(videoId)
+    await waitUntil(() => library.snapshot().caption !== null, 3000)
+    await library.configureProvider({ kind: "openai", url: "http://x/v1" })
+    await library.generateSummary(videoId)
+    await waitUntil(() => library.snapshot().improvedCaption !== null, 3000)
+    await waitUntil(() => library.snapshot().summary !== null, 3000)
+    const texts = library.snapshot().improvedCaption!.segments.map((segment) => segment.text)
+    expect(texts.some((text) => text.includes("improved"))).toBe(true)
+    expect(texts.some((text) => text.includes("original"))).toBe(true)
+    expect(
+      library.snapshot().jobs.some((job) => job.kind === "improve" && job.status === "complete")
+    ).toBe(true)
+  })
 })
+
+function numberedSrt(count: number): string {
+  return Array.from({ length: count }, (_, i) => {
+    const start = i * 2
+    const end = start + 1
+    return `${i + 1}\n${srtStamp(start)} --> ${srtStamp(end)}\noriginal ${i} ${"x".repeat(80)}\n`
+  }).join("\n")
+}
+
+function srtStamp(seconds: number): string {
+  const mm = String(Math.floor(seconds / 60)).padStart(2, "0")
+  const ss = String(seconds % 60).padStart(2, "0")
+  return `00:${mm}:${ss},000`
+}
+
+function longCaptionLibrary(providerClient: ProviderClient, body: string) {
+  const media = memoryMedia({
+    existing: ["/lesson.mp4"],
+    sidecars: { "/lesson.mp4": "/lesson.srt" },
+    files: { "/lesson.srt": body }
+  })
+  return unlockedLibrary({ media, providerClient })
+}
