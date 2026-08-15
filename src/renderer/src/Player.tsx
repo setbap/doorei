@@ -9,6 +9,7 @@ import {
   VolumeX
 } from "lucide-react"
 import type { AppLanguage, CaptionSegment } from "../../library/types.js"
+import { textDirection } from "../../library/textDirection.js"
 import { cn } from "@/lib/utils"
 import { t } from "./uiText"
 
@@ -240,6 +241,7 @@ export function Player({
         >
           <span
             className="inline-block max-w-[90%] rounded-md px-2.5 py-1 text-center text-[0.95rem] leading-relaxed"
+            dir={textDirection(captionText)}
             style={{
               color: captionColor,
               backgroundColor: captionBackground === "transparent" ? undefined : captionBackground,

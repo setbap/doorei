@@ -70,6 +70,7 @@ export type VideoRecord = {
   watched: boolean
   fileMissing: boolean
   captioningProgress: number | null
+  hasSummary: boolean
 }
 
 export type SessionRecord = {
@@ -203,4 +204,6 @@ export type Library = {
 
   retryJob(jobId: string): Promise<void>
   regenerateCaption(videoId: string): Promise<void>
+  generateSummary(videoId: string): Promise<void>
+  generateMissingSummaries(): Promise<void>
 }

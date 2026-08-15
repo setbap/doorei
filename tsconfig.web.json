@@ -27,6 +27,7 @@
     "src/library/types.ts",
     "src/library/models.ts",
     "src/library/treeDrop.ts",
-    "src/library/providerConfig.ts"
+    "src/library/providerConfig.ts",
+    "src/library/textDirection.ts"
   ]
 }

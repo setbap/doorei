@@ -15,6 +15,7 @@ import type {
   SearchScope,
   SpokenLanguage
 } from "../../library/types.js"
+import { textDirection } from "../../library/textDirection.js"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -109,7 +110,9 @@ export function Shell({ snapshot }: Props) {
   }, [selected?.id, selected?.path, selected?.fileMissing])
 
   const caption = snapshot.improvedCaption ?? snapshot.caption
-  const jobs = snapshot.jobs.filter((job) => job.status === "running" || job.status === "failed")
+  const jobs = snapshot.jobs.filter(
+    (job) => job.status === "queued" || job.status === "running" || job.status === "failed"
+  )
   const rtl = snapshot.direction === "rtl"
   const LibraryToggleIcon = libraryOpen
     ? rtl
@@ -395,6 +398,7 @@ export function Shell({ snapshot }: Props) {
                     className="h-full min-h-0 resize-none border-0 bg-transparent p-0 shadow-none field-sizing-fixed focus-visible:ring-0 dark:bg-transparent"
                     placeholder={t(lang, "composerPlaceholder")}
                     value={note}
+                    dir={note.trim() ? textDirection(note) : "auto"}
                     onChange={(event) => setNote(event.target.value)}
                   />
                 </div>

@@ -21,6 +21,8 @@ import {
   SelectValue
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { textDirection } from "../../library/textDirection.js"
+import { Markdown } from "./Markdown"
 import { t } from "./uiText"
 
 const ACTIVITIES = [
@@ -132,6 +134,7 @@ export function ToolPane({
               className="flex-1"
               placeholder={t(lang, "searchPlaceholder")}
               value={query}
+              dir={query.trim() ? textDirection(query) : "auto"}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") void window.doorei.call("search", { text: query, scope })
@@ -164,7 +167,9 @@ export function ToolPane({
                     onClick={() => void seekHit(hit.videoId, hit.startSeconds)}
                   >
                     <span className="text-xs text-muted-foreground">{hit.kind}</span>
-                    <span className="text-start">{hit.text}</span>
+                    <span className="w-full text-start" dir={textDirection(hit.text)}>
+                      {hit.text}
+                    </span>
                   </Button>
                 </li>
               ))}
@@ -198,6 +203,7 @@ export function ToolPane({
             <Textarea
               placeholder={t(lang, "askPlaceholder")}
               value={question}
+              dir={question.trim() ? textDirection(question) : "auto"}
               onChange={(event) => setQuestion(event.target.value)}
             />
             <Button
@@ -213,13 +219,16 @@ export function ToolPane({
             ) : null}
             {snapshot.askAnswer ? (
               <ScrollArea className="mt-3 min-h-0 flex-1">
-                <p className="text-sm">{snapshot.askAnswer.text}</p>
+                <p className="text-sm" dir={textDirection(snapshot.askAnswer.text)}>
+                  {snapshot.askAnswer.text}
+                </p>
                 <ul className="mt-2 space-y-1">
                   {snapshot.askAnswer.hits.map((hit, index) => (
                     <li key={index}>
                       <Button
                         variant="link"
                         className="h-auto px-0 whitespace-normal"
+                        dir={textDirection(hit.text)}
                         onClick={() => void seekHit(hit.videoId, hit.startSeconds)}
                       >
                         {hit.text}
@@ -240,13 +249,7 @@ export function ToolPane({
           onSeek={onSeek}
         />
       ) : null}
-      {activity === "summary" ? (
-        <ScrollArea className="min-h-0 flex-1">
-          <p className="whitespace-pre-wrap text-sm leading-6">
-            {snapshot.summary ?? t(lang, "noSummary")}
-          </p>
-        </ScrollArea>
-      ) : null}
+      {activity === "summary" ? <SummaryPane snapshot={snapshot} lang={lang} /> : null}
       {activity === "notes" ? (
         <ScrollArea className="min-h-0 flex-1">
           {snapshot.notes.length === 0 ? (
@@ -265,7 +268,9 @@ export function ToolPane({
                       {Math.floor(item.timestampSeconds)}s
                     </Button>
                   ) : null}
-                  <p className="text-sm">{item.text}</p>
+                  <p className="text-sm" dir={textDirection(item.text)}>
+                    {item.text}
+                  </p>
                   <Button
                     variant="ghost"
                     size="xs"
@@ -291,6 +296,84 @@ function isActivity(value: string | undefined): value is Activity {
     value === "captions" ||
     value === "summary" ||
     value === "notes"
+  )
+}
+
+function SummaryPane({ snapshot, lang }: { snapshot: LibrarySnapshot; lang: AppLanguage }) {
+  const videoId = snapshot.selectedVideoId
+  const hasCaption = Boolean((snapshot.improvedCaption ?? snapshot.caption)?.segments.length)
+  const pipeline = snapshot.jobs.filter(
+    (job) =>
+      job.videoId === videoId &&
+      (job.kind === "improve" || job.kind === "summary") &&
+      (job.status === "queued" || job.status === "running")
+  )
+  const generating = pipeline.length > 0
+  const failed = snapshot.jobs.find(
+    (job) =>
+      job.videoId === videoId &&
+      (job.kind === "improve" || job.kind === "summary") &&
+      job.status === "failed"
+  )
+  const [pending, setPending] = useState(false)
+  const [callError, setCallError] = useState<string | null>(null)
+  const busy = generating || pending
+  const improveJob = pipeline.find((job) => job.kind === "improve")
+  const hint = !snapshot.providerConfigured
+    ? t(lang, "noSummary")
+    : !videoId
+      ? t(lang, "noVideo")
+      : !hasCaption
+        ? t(lang, "noCaptionForSummary")
+        : improveJob
+          ? t(lang, "summaryImproving")
+          : generating || pending
+            ? t(lang, "summaryGenerating")
+            : t(lang, "noSummaryYet")
+
+  useEffect(() => {
+    if (generating || snapshot.summary) setPending(false)
+  }, [generating, snapshot.summary])
+
+  async function generate(): Promise<void> {
+    if (!videoId) return
+    setCallError(null)
+    setPending(true)
+    try {
+      await window.doorei.call("generateSummary", videoId)
+    } catch (error) {
+      setPending(false)
+      setCallError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  if (snapshot.summary && !busy) {
+    return (
+      <ScrollArea className="min-h-0 flex-1">
+        <Markdown text={snapshot.summary} />
+      </ScrollArea>
+    )
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <p className="text-sm text-muted-foreground">{hint}</p>
+      {failed?.error || callError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{callError ?? failed?.error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {snapshot.providerConfigured && videoId && hasCaption ? (
+        <Button className="self-start" disabled={busy} onClick={() => void generate()}>
+          {busy ? t(lang, "summaryGenerating") : t(lang, "generateSummary")}
+        </Button>
+      ) : null}
+      {snapshot.summary && busy ? (
+        <ScrollArea className="min-h-0 flex-1">
+          <Markdown text={snapshot.summary} />
+        </ScrollArea>
+      ) : null}
+    </div>
   )
 }
 
@@ -339,7 +422,12 @@ function CaptionList({
                 <span className="w-10 shrink-0 pt-0.5 font-medium text-white/45 tabular-nums" dir="ltr">
                   {formatCaptionTime(segment.startSeconds)}
                 </span>
-                <span className="min-w-0 leading-relaxed">{segment.text}</span>
+                <span
+                  className="min-w-0 flex-1 leading-relaxed"
+                  dir={textDirection(segment.text)}
+                >
+                  {segment.text}
+                </span>
               </button>
             </li>
           )

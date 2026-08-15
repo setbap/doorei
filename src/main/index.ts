@@ -110,7 +110,9 @@ const LIBRARY_METHODS = new Set([
   "ask",
   "setActivity",
   "retryJob",
-  "regenerateCaption"
+  "regenerateCaption",
+  "generateSummary",
+  "generateMissingSummaries"
 ])
 
 app.whenReady().then(async () => {

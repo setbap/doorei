@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import { jsonrepair } from "jsonrepair"
 import { REQUIRED_MODELS } from "./models.js"
 import { captionFromSidecar } from "./parseCaption.js"
 import type {
@@ -25,7 +26,7 @@ const DEFAULT_PROMPTS = {
   improve:
     "Rewrite this Caption with corrected wording. Keep the same timestamps and the same Spoken language. Fix technical terms. Return only a JSON array of {startSeconds, endSeconds, text}.",
   summary:
-    "Write a Summary of this Video in the requested Output language so the learner can re-read what it covered without watching.",
+    "Write a Summary of this Video in the requested Output language so the learner can re-read what it covered without watching. Use Markdown (headings, lists, bold). Return only the Markdown, with no wrapping code fence.",
   ask: "Answer the question using only the provided Hits. Cite those Hits. Write in the requested Output language."
 }
 
@@ -116,6 +117,45 @@ function id(prefix: string): string {
 
 function basename(path: string): string {
   return path.split(/[/\\]/).pop() ?? path
+}
+
+function unwrapFence(text: string): string {
+  const trimmed = text.trim()
+  const fenced = /^```(?:json|markdown|md)?\s*\n([\s\S]*?)\n```$/i.exec(trimmed)
+  return (fenced ? fenced[1] : trimmed).trim()
+}
+
+function asCaptionSegments(parsed: unknown): CaptionSegment[] {
+  if (!Array.isArray(parsed)) {
+    throw new Error("Provider returned invalid Improved Caption")
+  }
+  return parsed as CaptionSegment[]
+}
+
+function parseImprovedSegments(raw: string): CaptionSegment[] {
+  const unwrapped = unwrapFence(raw)
+  const start = unwrapped.indexOf("[")
+  const end = unwrapped.lastIndexOf("]")
+  const candidates = [unwrapped]
+  if (start >= 0 && end > start) {
+    candidates.push(unwrapped.slice(start, end + 1))
+  }
+  let lastError: unknown
+  for (const candidate of candidates) {
+    try {
+      return asCaptionSegments(JSON.parse(candidate))
+    } catch (error) {
+      lastError = error
+    }
+    try {
+      return asCaptionSegments(JSON.parse(jsonrepair(candidate)))
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Provider returned invalid Improved Caption")
 }
 
 function cosine(a: number[], b: number[]): number {
@@ -338,26 +378,77 @@ export function createLibrary(deps: LibraryDeps): Library {
     return job
   }
 
-  function kick(): void {
-    chain = chain.then(async () => {
-      const job =
-        state.jobs.find((item) => item.status === "queued" && item.kind === "captioning") ??
-        state.jobs.find((item) => item.status === "queued")
-      if (!job) return
-      job.status = "running"
-      emit()
-      try {
-        if (job.kind === "captioning") await runCaptioning(job)
-        else if (job.kind === "embed") await runEmbed(job)
-        else if (job.kind === "improve") await runImprove(job)
-        else if (job.kind === "summary") await runSummary(job)
-      } catch (error) {
-        job.status = "failed"
-        job.error = error instanceof Error ? error.message : String(error)
-        emit()
+  let missingSummaryQueue: string[] = []
+
+  function videosNeedingSummary(): string[] {
+    if (!state.selectedCourseId) return []
+    const sessionIds = new Set(
+      state.sessions
+        .filter((session) => session.courseId === state.selectedCourseId)
+        .map((session) => session.id)
+    )
+    return treeVideos()
+      .filter((video) => sessionIds.has(video.sessionId))
+      .filter(
+        (video) => !state.summaries[video.id] && (state.captions[video.id]?.segments.length ?? 0) > 0
+      )
+      .map((video) => video.id)
+  }
+
+  function startNextMissingSummary(): void {
+    while (missingSummaryQueue.length > 0) {
+      const videoId = missingSummaryQueue[0]!
+      if (state.summaries[videoId] || !(state.captions[videoId]?.segments.length ?? 0)) {
+        missingSummaryQueue.shift()
+        continue
       }
-      if (state.jobs.some((item) => item.status === "queued")) kick()
-    })
+      const busy = state.jobs.some(
+        (job) =>
+          job.videoId === videoId &&
+          (job.kind === "improve" || job.kind === "summary") &&
+          (job.status === "queued" || job.status === "running")
+      )
+      if (busy) return
+      upsertJob("improve", videoId)
+      emit()
+      kick()
+      return
+    }
+  }
+
+  function finishMissingSummary(videoId: string): void {
+    if (missingSummaryQueue[0] !== videoId) return
+    missingSummaryQueue.shift()
+    startNextMissingSummary()
+  }
+
+  function kick(): void {
+    chain = chain
+      .catch(() => undefined)
+      .then(async () => {
+        const job =
+          state.jobs.find((item) => item.status === "queued" && item.kind === "captioning") ??
+          state.jobs.find((item) => item.status === "queued")
+        if (!job) return
+        job.status = "running"
+        emit()
+        try {
+          if (job.kind === "captioning") await runCaptioning(job)
+          else if (job.kind === "embed") await runEmbed(job)
+          else if (job.kind === "improve") await runImprove(job)
+          else if (job.kind === "summary") await runSummary(job)
+        } catch (error) {
+          job.status = "failed"
+          job.error = error instanceof Error ? error.message : String(error)
+          emit()
+          if (job.kind === "improve" && (state.captions[job.videoId]?.segments.length ?? 0) > 0) {
+            upsertJob("summary", job.videoId)
+          } else if (job.kind === "improve" || job.kind === "summary") {
+            finishMissingSummary(job.videoId)
+          }
+        }
+        if (state.jobs.some((item) => item.status === "queued")) kick()
+      })
   }
 
   function afterCaption(videoId: string): void {
@@ -432,6 +523,7 @@ export function createLibrary(deps: LibraryDeps): Library {
     if (!state.provider) {
       job.status = "off"
       emit()
+      finishMissingSummary(job.videoId)
       return
     }
     if (!deps.providerClient) {
@@ -445,9 +537,16 @@ export function createLibrary(deps: LibraryDeps): Library {
       system: state.prompts.improve,
       prompt: `Spoken language: ${video.spokenLanguage}\nRewrite this Caption as JSON.\n${JSON.stringify(caption.segments)}`
     })
-    const parsed = JSON.parse(raw) as CaptionSegment[]
-    if (!Array.isArray(parsed)) {
-      throw new Error("Provider returned invalid Improved Caption")
+    let parsed: CaptionSegment[]
+    try {
+      parsed = parseImprovedSegments(raw)
+    } catch (error) {
+      job.status = "failed"
+      job.error = error instanceof Error ? error.message : String(error)
+      emit()
+      upsertJob("summary", job.videoId)
+      kick()
+      return
     }
     const segments = parsed.map((segment, index) => ({
       startSeconds: segment.startSeconds ?? caption.segments[index]?.startSeconds ?? 0,
@@ -467,6 +566,7 @@ export function createLibrary(deps: LibraryDeps): Library {
     if (!state.provider) {
       job.status = "off"
       emit()
+      finishMissingSummary(job.videoId)
       return
     }
     if (!deps.providerClient) {
@@ -475,14 +575,18 @@ export function createLibrary(deps: LibraryDeps): Library {
     const caption = recallCaption(job.videoId)
     if (!caption) throw new Error("No Caption to summarize")
     const outputLanguage = state.outputLanguage ?? state.appLanguage ?? "fa"
-    const text = await deps.providerClient.complete({
-      system: state.prompts.summary,
-      prompt: `Output language: ${outputLanguage}\n${JSON.stringify(caption.segments)}`
-    })
+    const text = unwrapFence(
+      await deps.providerClient.complete({
+        system: state.prompts.summary,
+        prompt: `Output language: ${outputLanguage}\n${JSON.stringify(caption.segments)}`
+      })
+    )
+    if (!text) throw new Error("Provider returned an empty Summary")
     state.summaries[job.videoId] = text
     job.status = "complete"
     job.progress = 1
     emit()
+    finishMissingSummary(job.videoId)
   }
 
   for (const job of state.jobs) {
@@ -513,7 +617,10 @@ export function createLibrary(deps: LibraryDeps): Library {
       selectedCourseId: state.selectedCourseId,
       selectedVideoId: state.selectedVideoId,
       sessions: treeSessions().map((session) => ({ ...session })),
-      videos: treeVideos().map((video) => ({ ...video })),
+      videos: treeVideos().map((video) => ({
+        ...video,
+        hasSummary: Boolean(state.summaries[video.id])
+      })),
       notes: selected
         ? state.notes.filter((note) => note.videoId === selected.id).map((note) => ({ ...note }))
         : [],
@@ -641,7 +748,8 @@ export function createLibrary(deps: LibraryDeps): Library {
           playbackPositionSeconds: 0,
           watched: false,
           fileMissing: !deps.media.exists(path),
-          captioningProgress: null
+          captioningProgress: null,
+          hasSummary: false
         })
         const sidecar = deps.media.captionSidecar(path)
         if (sidecar) {
@@ -857,6 +965,25 @@ export function createLibrary(deps: LibraryDeps): Library {
       upsertJob("captioning", videoId)
       emit()
       kick()
+    },
+    async generateSummary(videoId) {
+      assertUsable()
+      if (!state.provider) throw new Error("Provider is not configured")
+      const caption = state.captions[videoId]
+      if (!caption?.segments.length) throw new Error("No Caption to summarize")
+      upsertJob("improve", videoId)
+      emit()
+      kick()
+    },
+    async generateMissingSummaries() {
+      assertUsable()
+      if (!state.provider) throw new Error("Provider is not configured")
+      const needed = videosNeedingSummary()
+      const seen = new Set(missingSummaryQueue)
+      for (const videoId of needed) {
+        if (!seen.has(videoId)) missingSummaryQueue.push(videoId)
+      }
+      startNextMissingSummary()
     }
   }
 }

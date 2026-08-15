@@ -1,4 +1,4 @@
-import { Check, ChevronDown, PanelLeft, PanelRight, Pencil, Plus, Settings, StickyNote } from "lucide-react"
+import { Check, ChevronDown, FileText, PanelLeft, PanelRight, Pencil, Plus, Settings, StickyNote } from "lucide-react"
 import type { AppLanguage, LibrarySnapshot } from "../../library/types.js"
 import { Button } from "@/components/ui/button"
 import {
@@ -105,6 +105,17 @@ export function CourseCommand({
               >
                 <Pencil />
                 {t(lang, "renameCourse")}
+              </CommandItem>
+              <CommandItem
+                value={t(lang, "generateMissingSummaries")}
+                disabled={!snapshot.providerConfigured}
+                onSelect={() => {
+                  if (!snapshot.providerConfigured) return
+                  closeAnd(() => void window.doorei.call("generateMissingSummaries"))
+                }}
+              >
+                <FileText />
+                {t(lang, "generateMissingSummaries")}
               </CommandItem>
               <CommandItem value={t(lang, "toggleNote")} onSelect={() => closeAnd(onToggleNote)}>
                 <StickyNote />

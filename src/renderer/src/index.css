@@ -219,3 +219,76 @@
   background: #fff;
   box-shadow: 0 0 0 3px rgb(0 0 0 / 28%);
 }
+
+.summary-markdown > * + * {
+  margin-top: 0.75rem;
+}
+
+.summary-markdown h1,
+.summary-markdown h2,
+.summary-markdown h3,
+.summary-markdown h4 {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.summary-markdown h1 {
+  font-size: 1.15rem;
+}
+
+.summary-markdown h2 {
+  font-size: 1.05rem;
+}
+
+.summary-markdown h3,
+.summary-markdown h4 {
+  font-size: 1rem;
+}
+
+.summary-markdown ul,
+.summary-markdown ol {
+  padding-inline-start: 1.25rem;
+}
+
+.summary-markdown ul {
+  list-style: disc;
+}
+
+.summary-markdown ol {
+  list-style: decimal;
+}
+
+.summary-markdown li + li {
+  margin-top: 0.25rem;
+}
+
+.summary-markdown a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.summary-markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  border-radius: 0.3rem;
+  background: rgb(255 255 255 / 8%);
+  padding: 0.1rem 0.3rem;
+}
+
+.summary-markdown pre {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 6%);
+  padding: 0.75rem;
+}
+
+.summary-markdown pre code {
+  background: none;
+  padding: 0;
+}
+
+.summary-markdown blockquote {
+  border-inline-start: 2px solid rgb(255 255 255 / 18%);
+  padding-inline-start: 0.75rem;
+  color: var(--muted-foreground);
+}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type MutableRefObject, type ReactNode } from "react"
-import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, Plus } from "lucide-react"
+import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, Loader2, Plus } from "lucide-react"
 import type {
   AppLanguage,
   Job,
@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { t } from "./uiText"
+import { textDirection } from "../../library/textDirection.js"
 
 type Props = {
   snapshot: LibrarySnapshot
@@ -386,6 +387,23 @@ function VideoRow({
   const videoHint = dropTarget?.kind === "video" && dropTarget.id === video.id ? dropTarget.placement : null
   const selected = video.id === snapshot.selectedVideoId
   const failedJobs = snapshot.jobs.filter((job) => job.videoId === video.id && job.status === "failed")
+  const pipeline = snapshot.jobs.filter(
+    (job) =>
+      job.videoId === video.id &&
+      (job.kind === "improve" || job.kind === "summary") &&
+      (job.status === "queued" || job.status === "running")
+  )
+  const spinJob =
+    pipeline.find((job) => job.status === "running") ??
+    pipeline.find((job) => job.kind === "improve") ??
+    pipeline[0]
+  const spinKind = spinJob?.kind
+  const hasSummary =
+    video.hasSummary ||
+    (video.id === snapshot.selectedVideoId && Boolean(snapshot.summary)) ||
+    snapshot.jobs.some(
+      (job) => job.videoId === video.id && job.kind === "summary" && job.status === "complete"
+    )
   return (
     <ContextMenu>
       <ContextMenuTrigger
@@ -398,8 +416,14 @@ function VideoRow({
       >
         <Button
           draggable
-          variant={selected ? "secondary" : "ghost"}
-          className="h-auto min-w-0 flex-1 cursor-grab justify-between py-1.5 active:cursor-grabbing"
+          variant="ghost"
+          className={cn(
+            "h-auto min-w-0 flex-1 cursor-grab justify-between py-1.5 active:cursor-grabbing",
+            selected && "bg-secondary",
+            hasSummary
+              ? "text-foreground hover:text-foreground"
+              : "text-muted-foreground hover:text-muted-foreground"
+          )}
           onDragStart={(event) => {
             event.stopPropagation()
             event.dataTransfer.effectAllowed = "move"
@@ -439,8 +463,21 @@ function VideoRow({
             void window.doorei.call("selectVideo", video.id)
           }}
         >
-          <span className="truncate">{video.name}</span>
+          <span className="truncate" dir={textDirection(video.name)}>
+            {video.name}
+          </span>
           <span className="flex items-center gap-1">
+            {spinKind ? (
+              <Loader2
+                className={cn(
+                  "size-3.5 shrink-0 animate-spin",
+                  spinKind === "improve" ? "text-orange-400" : "text-emerald-400"
+                )}
+                aria-label={
+                  spinKind === "improve" ? t(lang, "summaryImproving") : t(lang, "summaryGenerating")
+                }
+              />
+            ) : null}
             {video.watched ? <Badge variant="secondary">✓</Badge> : null}
             {video.fileMissing ? <Badge variant="outline">!</Badge> : null}
           </span>
@@ -468,6 +505,7 @@ function VideoRow({
               video={video}
               lang={lang}
               failedJobs={failedJobs}
+              providerConfigured={snapshot.providerConfigured}
               Item={DropdownMenuItem}
               CheckboxItem={DropdownMenuCheckboxItem}
               Separator={DropdownMenuSeparator}
@@ -480,6 +518,7 @@ function VideoRow({
           video={video}
           lang={lang}
           failedJobs={failedJobs}
+          providerConfigured={snapshot.providerConfigured}
           Item={ContextMenuItem}
           CheckboxItem={ContextMenuCheckboxItem}
           Separator={ContextMenuSeparator}
@@ -493,6 +532,7 @@ function VideoActionItems({
   video,
   lang,
   failedJobs,
+  providerConfigured,
   Item,
   CheckboxItem,
   Separator
@@ -500,8 +540,10 @@ function VideoActionItems({
   video: VideoRecord
   lang: AppLanguage
   failedJobs: Job[]
+  providerConfigured: boolean
   Item: ComponentType<{
     variant?: "default" | "destructive"
+    disabled?: boolean
     onClick?: () => void
     children?: ReactNode
   }>
@@ -535,6 +577,12 @@ function VideoActionItems({
       </Item>
       <Item onClick={() => void window.doorei.call("regenerateCaption", video.id)}>
         {t(lang, "regenerate")}
+      </Item>
+      <Item
+        disabled={!providerConfigured}
+        onClick={() => void window.doorei.call("generateSummary", video.id)}
+      >
+        {t(lang, "generateSummary")}
       </Item>
       {failedJobs.map((job) => (
         <Item key={job.id} onClick={() => void window.doorei.call("retryJob", job.id)}>

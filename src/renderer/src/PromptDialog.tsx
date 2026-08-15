@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { textDirection } from "../../library/textDirection.js"
 
 type Props = {
   open: boolean
@@ -63,6 +64,7 @@ export function PromptDialog({
             <Input
               id="prompt-field"
               value={value}
+              dir={value.trim() ? textDirection(value) : "auto"}
               onChange={(event) => setValue(event.target.value)}
               autoFocus
             />
