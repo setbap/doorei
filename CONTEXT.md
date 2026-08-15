@@ -55,8 +55,12 @@ Local retrieval over a Video, a Session, or a Course — lexical and semantic. R
 _Avoid_: find, query
 
 **Ask**:
-A chat over a Video, a Session, or a Course that requires a Provider. Answers cite Hits you can jump to. Written in the Output language.
+A Provider chat in a Conversation on the current Course. Each turn retrieves Hits — and may read Summary — using the Video and Session selected in the Library plus the rest of the Course. “This Video” and “this Session” mean that selection. Answers are in the Output language and cite Hits.
 _Avoid_: RAG, chatbot, copilot, talk
+
+**Conversation**:
+A persisted Ask history for one Course. The learner can keep several. It is not locked to one Video.
+_Avoid_: thread, chatbot, chat log
 
 **Hit**:
 A place in a Video (Caption segment or Note) that Search or Ask can jump to.
