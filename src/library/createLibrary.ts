@@ -159,10 +159,27 @@ export function createLibrary(deps: LibraryDeps): Library {
     }
   }
 
-  function selectedCourseSessions() {
-    return state.sessions
-      .filter((session) => session.courseId === state.selectedCourseId)
-      .sort((a, b) => a.position - b.position)
+  function treeSessions() {
+    return state.sessions.slice().sort((a, b) => {
+      const courseA = state.courses.findIndex((course) => course.id === a.courseId)
+      const courseB = state.courses.findIndex((course) => course.id === b.courseId)
+      if (courseA !== courseB) return courseA - courseB
+      return a.position - b.position
+    })
+  }
+
+  function treeVideos() {
+    return state.videos.slice().sort((a, b) => {
+      const sessionA = state.sessions.find((session) => session.id === a.sessionId)
+      const sessionB = state.sessions.find((session) => session.id === b.sessionId)
+      const courseA = state.courses.findIndex((course) => course.id === sessionA?.courseId)
+      const courseB = state.courses.findIndex((course) => course.id === sessionB?.courseId)
+      if (courseA !== courseB) return courseA - courseB
+      const sessionPosA = sessionA?.position ?? 0
+      const sessionPosB = sessionB?.position ?? 0
+      if (sessionPosA !== sessionPosB) return sessionPosA - sessionPosB
+      return a.position - b.position
+    })
   }
 
   function refreshMissingFlags(): void {
@@ -488,16 +505,8 @@ export function createLibrary(deps: LibraryDeps): Library {
       courses: state.courses.map((course) => ({ ...course })),
       selectedCourseId: state.selectedCourseId,
       selectedVideoId: state.selectedVideoId,
-      sessions: selectedCourseSessions().map((session) => ({ ...session })),
-      videos: state.videos
-        .filter((video) => selectedCourseSessions().some((session) => session.id === video.sessionId))
-        .sort((a, b) => {
-          const sessionA = state.sessions.find((session) => session.id === a.sessionId)?.position ?? 0
-          const sessionB = state.sessions.find((session) => session.id === b.sessionId)?.position ?? 0
-          if (sessionA !== sessionB) return sessionA - sessionB
-          return a.position - b.position
-        })
-        .map((video) => ({ ...video })),
+      sessions: treeSessions().map((session) => ({ ...session })),
+      videos: treeVideos().map((video) => ({ ...video })),
       notes: selected
         ? state.notes.filter((note) => note.videoId === selected.id).map((note) => ({ ...note }))
         : [],

@@ -1,10 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
-  ChevronDown,
-  ChevronRight,
   FileText,
-  Folder,
-  FolderOpen,
   MessageSquare,
   Pencil,
   Plus,
@@ -19,7 +15,6 @@ import type {
   SearchScope,
   SpokenLanguage
 } from "../../library/types.js"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -53,8 +48,8 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils"
 import { AppBackdrop } from "./AppBackdrop"
+import { LibraryTree } from "./LibraryTree"
 import { PromptDialog } from "./PromptDialog"
 import { SettingsDialog } from "./SettingsDialog"
 import { ToolPane } from "./ToolPane"
@@ -90,25 +85,13 @@ export function Shell({ snapshot }: Props) {
   const [prompt, setPrompt] = useState<PromptState>(null)
   const [sessionDate, setSessionDate] = useState("")
   const [spoken, setSpoken] = useState<SpokenLanguage>(snapshot.spokenLanguageDefault)
-  const [openSessions, setOpenSessions] = useState<Set<string>>(() => {
-    const initial = new Set<string>()
-    const current = snapshot.videos.find((video) => video.id === snapshot.selectedVideoId)
-    if (current) initial.add(current.sessionId)
-    else if (snapshot.sessions[0]) initial.add(snapshot.sessions[0].id)
-    return initial
-  })
   const videoRef = useRef<HTMLVideoElement>(null)
   const nativeGlass = window.doorei.platform === "darwin"
   const selected = snapshot.videos.find((video) => video.id === snapshot.selectedVideoId)
+  const courseSessions = snapshot.sessions.filter(
+    (session) => session.courseId === snapshot.selectedCourseId
+  )
 
-  function toggleSession(id: string): void {
-    setOpenSessions((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
   const languageItems = {
     fa: t(lang, "persian"),
     en: t(lang, "english")
@@ -123,11 +106,6 @@ export function Shell({ snapshot }: Props) {
   }, [selected?.id, selected?.path, selected?.fileMissing])
 
   useEffect(() => {
-    if (!selected) return
-    setOpenSessions((prev) => (prev.has(selected.sessionId) ? prev : new Set(prev).add(selected.sessionId)))
-  }, [selected?.sessionId])
-
-  useEffect(() => {
     const el = videoRef.current
     if (!el || !selected) return
     if (Math.abs(el.currentTime - selected.playbackPositionSeconds) > 1.5) {
@@ -135,16 +113,6 @@ export function Shell({ snapshot }: Props) {
     }
     el.playbackRate = snapshot.settings.playbackSpeed
   }, [selected?.id, mediaUrl, selected?.playbackPositionSeconds, snapshot.settings.playbackSpeed])
-
-  const videosBySession = useMemo(() => {
-    const map = new Map<string, typeof snapshot.videos>()
-    for (const video of snapshot.videos) {
-      const list = map.get(video.sessionId) ?? []
-      list.push(video)
-      map.set(video.sessionId, list)
-    }
-    return map
-  }, [snapshot.videos])
 
   const caption = snapshot.improvedCaption ?? snapshot.caption
   const jobs = snapshot.jobs.filter((job) => job.status === "running" || job.status === "failed")
@@ -155,7 +123,7 @@ export function Shell({ snapshot }: Props) {
     targetSessionId?: string
   ): Promise<void> {
     const sessionId =
-      targetSessionId ?? selected?.sessionId ?? snapshot.sessions[snapshot.sessions.length - 1]?.id
+      targetSessionId ?? selected?.sessionId ?? courseSessions[courseSessions.length - 1]?.id
     if (!sessionId) return
     const paths = await picker()
     if (!paths.length) return
@@ -233,97 +201,11 @@ export function Shell({ snapshot }: Props) {
               </div>
             ) : null}
             <ScrollArea className="min-h-0 flex-1 px-2 pb-2">
-              {snapshot.sessions.map((session) => {
-                const sessionVideos = videosBySession.get(session.id) ?? []
-                const open = openSessions.has(session.id)
-                return (
-                  <div key={session.id} className="mb-0.5">
-                    <div className="group/row flex items-center gap-1 rounded-md pe-1 hover:bg-sidebar-accent/60">
-                      <button
-                        type="button"
-                        onClick={() => toggleSession(session.id)}
-                        className="flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1.5 text-start"
-                      >
-                        <span className="relative inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-                          {open ? (
-                            <FolderOpen className="size-4 transition-opacity group-hover/row:opacity-0" />
-                          ) : (
-                            <Folder className="size-4 transition-opacity group-hover/row:opacity-0" />
-                          )}
-                          {open ? (
-                            <ChevronDown className="absolute size-4 opacity-0 transition-opacity group-hover/row:opacity-100" />
-                          ) : (
-                            <ChevronRight className="absolute size-4 opacity-0 transition-opacity group-hover/row:opacity-100 rtl:rotate-180" />
-                          )}
-                        </span>
-                        <span className="truncate text-sm">{session.name}</span>
-                        {session.date ? (
-                          <span className="shrink-0 text-[0.7rem] text-muted-foreground">
-                            {session.date}
-                          </span>
-                        ) : null}
-                      </button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              className={cn(
-                                "shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 aria-expanded:opacity-100",
-                                open && "opacity-70"
-                              )}
-                            />
-                          }
-                        >
-                          <Plus />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem
-                            onClick={() => void addVideos(() => window.doorei.pickVideos(), session.id)}
-                          >
-                            {t(lang, "addVideos")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              void addVideos(() => window.doorei.pickFolderVideos(), session.id)
-                            }
-                          >
-                            {t(lang, "addFolder")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    {open ? (
-                      <div className="mb-1 ms-[1.05rem] border-s ps-2">
-                        {sessionVideos.length === 0 ? (
-                          <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                            {t(lang, "noVideosInSession")}
-                          </p>
-                        ) : (
-                          sessionVideos.map((video) => (
-                            <Button
-                              key={video.id}
-                              variant={video.id === snapshot.selectedVideoId ? "secondary" : "ghost"}
-                              className="mt-0.5 h-auto w-full justify-between py-1.5"
-                              onClick={() => void window.doorei.call("selectVideo", video.id)}
-                            >
-                              <span className="truncate">{video.name}</span>
-                              <span className="flex items-center gap-1">
-                                {video.watched ? <Badge variant="secondary">✓</Badge> : null}
-                                {video.fileMissing ? <Badge variant="outline">!</Badge> : null}
-                              </span>
-                            </Button>
-                          ))
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                )
-              })}
-              {snapshot.selectedCourseId && snapshot.sessions.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-muted-foreground">{t(lang, "noSessions")}</p>
-              ) : null}
+              <LibraryTree
+                snapshot={snapshot}
+                lang={lang}
+                onAddVideos={(sessionId, picker) => void addVideos(picker, sessionId)}
+              />
             </ScrollArea>
             <Separator />
             <Button
