@@ -7,6 +7,7 @@ import {
   SHENAVA_HOP_SAMPLES,
   SHENAVA_WINDOW_SAMPLES,
   argmaxLogits,
+  captionShenavaWindow,
   createOnnxShenavaGraph,
   decodeShenavaCtc,
   keepWindowCues,
@@ -29,7 +30,7 @@ describe("Shenava CTC decode", () => {
     expect(segments).toEqual([{ startSeconds: 0, endSeconds: 0.4, text: "سلام دنیا" }])
   })
 
-  test("a pause of 480ms starts a new Caption cue", () => {
+  test("a 480ms gap stays in the same Caption cue", () => {
     const tokens = Array.from({ length: 1025 }, () => "")
     tokens[10] = "▁سلام"
     tokens[11] = "▁دنیا"
@@ -38,10 +39,50 @@ describe("Shenava CTC decode", () => {
       tokens,
       0
     )
+    expect(segments).toEqual([{ startSeconds: 0, endSeconds: 0.64, text: "سلام دنیا" }])
+  })
+
+  test("a pause of 960ms starts a new Caption cue", () => {
+    const tokens = Array.from({ length: 1025 }, () => "")
+    tokens[10] = "▁سلام"
+    tokens[11] = "▁دنیا"
+    const segments = decodeShenavaCtc(
+      [
+        10,
+        SHENAVA_BLANK_ID,
+        SHENAVA_BLANK_ID,
+        SHENAVA_BLANK_ID,
+        SHENAVA_BLANK_ID,
+        SHENAVA_BLANK_ID,
+        SHENAVA_BLANK_ID,
+        SHENAVA_BLANK_ID,
+        SHENAVA_BLANK_ID,
+        SHENAVA_BLANK_ID,
+        SHENAVA_BLANK_ID,
+        SHENAVA_BLANK_ID,
+        SHENAVA_BLANK_ID,
+        11
+      ],
+      tokens,
+      0
+    )
     expect(segments).toEqual([
       { startSeconds: 0, endSeconds: 0.08, text: "سلام" },
-      { startSeconds: 0.56, endSeconds: 0.64, text: "دنیا" }
+      { startSeconds: 1.04, endSeconds: 1.12, text: "دنیا" }
     ])
+  })
+
+  test("words without a pause stay in one cue up to 24 words", () => {
+    const tokens = Array.from({ length: 1025 }, () => "")
+    const ids: number[] = []
+    for (let i = 0; i < 25; i += 1) {
+      tokens[10 + i] = `▁و${i}`
+      ids.push(10 + i)
+    }
+    const segments = decodeShenavaCtc(ids, tokens, 0)
+    expect(segments).toHaveLength(2)
+    expect(segments[0]?.text.split(" ")).toHaveLength(24)
+    expect(segments[1]?.text).toBe("و24")
   })
 
   test("SentencePiece specials are dropped and window offset is applied", () => {
@@ -81,6 +122,27 @@ describe("Shenava windowed Captioning", () => {
         { windowStartSeconds: 18.04, windowSeconds: 20.04, isFirst: false, isLast: true }
       ).map((cue) => cue.text)
     ).toEqual(["mid", "late"])
+  })
+
+  test("a short last window still sends a full-size mel tensor", async () => {
+    const tokens = Array.from({ length: 1025 }, () => "")
+    tokens[10] = "▁سلام"
+    let melLength = 0
+    let frames = 0
+    const graph: ShenavaGraph = {
+      async infer(mel, frameCount) {
+        melLength = mel.length
+        frames = frameCount
+        return [10]
+      }
+    }
+    await captionShenavaWindow(
+      new Float32Array(1600),
+      { graph, tokens, filters: dummyFilters() },
+      { windowStartSeconds: 0, isFirst: true, isLast: true }
+    )
+    expect(melLength).toBe(80 * 2005)
+    expect(frames).toBe(11)
   })
 
   test("a long Video is captioned in overlapping 2005-frame windows and streams segments", async () => {

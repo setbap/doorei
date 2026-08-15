@@ -52,7 +52,7 @@ describe("Parakeet TDT decode", () => {
     expect(segments).toEqual([{ startSeconds: 20.12, endSeconds: 20.28, text: "hello" }])
   })
 
-  test("a pause of 480ms starts a new Caption cue", async () => {
+  test("a 480ms gap stays in the same Caption cue", async () => {
     const tokens = Array.from({ length: 12 }, () => "")
     tokens[10] = "▁hello"
     tokens[11] = "▁world"
@@ -68,9 +68,28 @@ describe("Parakeet TDT decode", () => {
       blankId,
       0
     )
+    expect(segments).toEqual([{ startSeconds: 0, endSeconds: 0.64, text: "hello world" }])
+  })
+
+  test("a pause of 960ms starts a new Caption cue", async () => {
+    const tokens = Array.from({ length: 12 }, () => "")
+    tokens[10] = "▁hello"
+    tokens[11] = "▁world"
+    const blankId = 4
+    const segments = await decodeParakeetTdt(
+      14,
+      (frame) => {
+        if (frame === 0) return { tokenId: 10, duration: 1 }
+        if (frame === 13) return { tokenId: 11, duration: 1 }
+        return { tokenId: blankId, duration: 1 }
+      },
+      tokens,
+      blankId,
+      0
+    )
     expect(segments).toEqual([
       { startSeconds: 0, endSeconds: 0.08, text: "hello" },
-      { startSeconds: 0.56, endSeconds: 0.64, text: "world" }
+      { startSeconds: 1.04, endSeconds: 1.12, text: "world" }
     ])
   })
 })

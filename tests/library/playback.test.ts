@@ -60,9 +60,18 @@ describe("playback position, watched, and next Video", () => {
     expect(library.snapshot().settings.autoplay).toBe(false)
     expect(library.snapshot().settings.confetti).toBe(false)
     expect(library.snapshot().settings.playbackSpeed).toBe(1)
-    await library.updateSettings({ playbackSpeed: 1.5, subtitlesVisible: false })
+    expect(library.snapshot().settings.captionColor).toBe("#ffffff")
+    expect(library.snapshot().settings.captionBackground).toBe("#000000b8")
+    await library.updateSettings({
+      playbackSpeed: 1.5,
+      subtitlesVisible: false,
+      captionColor: "#facc15",
+      captionBackground: "transparent"
+    })
     expect(library.snapshot().settings.playbackSpeed).toBe(1.5)
     expect(library.snapshot().settings.subtitlesVisible).toBe(false)
+    expect(library.snapshot().settings.captionColor).toBe("#facc15")
+    expect(library.snapshot().settings.captionBackground).toBe("transparent")
   })
 
   test("Captioning job progress is never stored as Playback Position", async () => {

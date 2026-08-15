@@ -103,6 +103,8 @@ export function createSpeechRecognizer(modelsRoot: string): SpeechRecognizer {
           const pending = msg.id !== undefined ? client.pending.get(msg.id) : undefined
           pending?.reject(new Error(msg.message ?? `${label} worker failed`))
           if (msg.id !== undefined) client.pending.delete(msg.id)
+          started.terminate()
+          if (workerClient === client) workerClient = null
           return
         }
         if (msg.type === "segments" && msg.id !== undefined) {
@@ -111,25 +113,34 @@ export function createSpeechRecognizer(modelsRoot: string): SpeechRecognizer {
         }
       })
       started.on("error", (error) => {
-        const wrapped = error instanceof Error ? error : new Error(String(error))
-        for (const pending of client.pending.values()) pending.reject(wrapped)
-        client.pending.clear()
+        failPending(client, error instanceof Error ? error : new Error(String(error)))
+        if (workerClient === client) workerClient = null
+      })
+      started.on("exit", (code) => {
+        if (client.pending.size === 0) return
+        failPending(client, new Error(`${label} worker exited (${code ?? "unknown"})`))
         if (workerClient === client) workerClient = null
       })
       await new Promise<void>((resolve, reject) => {
         const onReady = (msg: { type: string; message?: string }) => {
           if (msg.type === "ready") {
             started.off("message", onReady)
+            started.off("error", onError)
             resolve()
             return
           }
           if (msg.type === "error") {
             started.off("message", onReady)
+            started.off("error", onError)
             reject(new Error(msg.message ?? `${label} worker failed to start`))
           }
         }
+        const onError = (error: Error) => {
+          started.off("message", onReady)
+          reject(error)
+        }
         started.on("message", onReady)
-        started.once("error", reject)
+        started.once("error", onError)
         started.postMessage({ type: "init", modelDir: modelPath })
       })
       workerClient = client
@@ -207,6 +218,11 @@ function inferOnWorker(
   })
 }
 
+function failPending(client: WorkerClient, error: Error): void {
+  for (const pending of client.pending.values()) pending.reject(error)
+  client.pending.clear()
+}
+
 function bundledWorkerFile(fileName: string): string | null {
   const here = dirname(fileURLToPath(import.meta.url))
   const bundled = join(here, fileName)
@@ -282,14 +298,24 @@ async function streamFfmpegPcm(
   ])
   child.stderr?.resume()
   let chain = Promise.resolve()
+  let failure: Error | null = null
   child.stdout.on("data", (chunk: Buffer) => {
-    chain = chain.then(() => onChunk(chunk))
+    chain = chain
+      .then(async () => {
+        if (failure) return
+        await onChunk(chunk)
+      })
+      .catch((error) => {
+        failure = error instanceof Error ? error : new Error(String(error))
+        child.kill()
+      })
   })
   await new Promise<void>((resolve, reject) => {
     child.on("error", reject)
     child.on("close", (code) => {
       void chain.then(() => {
-        if (code !== 0) reject(new Error(`ffmpeg exited with code ${code}`))
+        if (failure) reject(failure)
+        else if (code !== 0 && code !== null) reject(new Error(`ffmpeg exited with code ${code}`))
         else resolve()
       }, reject)
     })

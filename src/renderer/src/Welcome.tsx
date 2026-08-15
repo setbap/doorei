@@ -21,7 +21,7 @@ type Props = { snapshot: LibrarySnapshot };
 type Step = "intro" | "setup";
 
 const glassPanel =
-  "rounded-[20px] border border-zinc-800/10 bg-zinc-900/20 shadow-[0_12px_40px_rgba(0,0,0,0.28)] ring-1 ring-inset ring-zinc-500/15 backdrop-blur-2xl backdrop-saturate-150";
+  "rounded-[20px] border border-neutral-800/10 bg-neutral-950/20 shadow-[0_12px_40px_rgba(0,0,0,0.28)] ring-1 ring-inset ring-neutral-500/15 backdrop-blur-2xl backdrop-saturate-150";
 
 const primaryButton =
   "h-11 w-full rounded-xl border-0 bg-neutral-100 text-base text-neutral-900 hover:bg-white";

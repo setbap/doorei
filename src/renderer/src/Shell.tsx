@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from "react"
 import {
-  FileText,
-  MessageSquare,
-  Pencil,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
-  Search,
-  Settings,
-  StickyNote
+  Settings
 } from "lucide-react"
+import { usePanelRef } from "react-resizable-panels"
 import type {
-  Activity,
   AppLanguage,
+  Job,
   LibrarySnapshot,
   SearchScope,
   SpokenLanguage
@@ -24,12 +24,6 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -49,10 +43,13 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { AppBackdrop } from "./AppBackdrop"
+import { CourseCommand } from "./CourseCommand"
 import { LibraryTree } from "./LibraryTree"
 import { PromptDialog } from "./PromptDialog"
 import { SettingsDialog } from "./SettingsDialog"
+import { Player } from "./Player"
 import { ToolPane } from "./ToolPane"
+import { cn } from "@/lib/utils"
 import { t } from "./uiText"
 
 type Props = { snapshot: LibrarySnapshot }
@@ -66,16 +63,11 @@ type PromptState =
   | { kind: "spoken"; sessionId: string; paths: string[] }
   | null
 
-const ACTIVITIES = [
-  ["search", Search],
-  ["ask", MessageSquare],
-  ["summary", FileText],
-  ["notes", StickyNote]
-] as const
-
 export function Shell({ snapshot }: Props) {
   const lang: AppLanguage = snapshot.appLanguage ?? "fa"
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [actionPanelOpen, setActionPanelOpen] = useState(false)
+  const [composerOpen, setComposerOpen] = useState(loadComposerOpen)
   const [query, setQuery] = useState("")
   const [question, setQuestion] = useState("")
   const [scope, setScope] = useState<SearchScope>("video")
@@ -85,7 +77,14 @@ export function Shell({ snapshot }: Props) {
   const [prompt, setPrompt] = useState<PromptState>(null)
   const [sessionDate, setSessionDate] = useState("")
   const [spoken, setSpoken] = useState<SpokenLanguage>(snapshot.spokenLanguageDefault)
+  const lastPosWrite = useRef(0)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [playbackTime, setPlaybackTime] = useState(0)
+  const libraryPanelRef = usePanelRef()
+  const toolsPanelRef = usePanelRef()
+  const [shellLayout] = useState(loadShellLayout)
+  const [libraryOpen, setLibraryOpen] = useState(shellLayout.library > 1)
+  const [toolsOpen, setToolsOpen] = useState(shellLayout.tools > 1)
   const nativeGlass = window.doorei.platform === "darwin"
   const selected = snapshot.videos.find((video) => video.id === snapshot.selectedVideoId)
   const courseSessions = snapshot.sessions.filter(
@@ -98,6 +97,10 @@ export function Shell({ snapshot }: Props) {
   }
 
   useEffect(() => {
+    setPlaybackTime(selected?.playbackPositionSeconds ?? 0)
+  }, [selected?.id])
+
+  useEffect(() => {
     if (!selected || selected.fileMissing) {
       setMediaUrl(null)
       return
@@ -105,18 +108,53 @@ export function Shell({ snapshot }: Props) {
     void window.doorei.mediaUrl(selected.path).then(setMediaUrl)
   }, [selected?.id, selected?.path, selected?.fileMissing])
 
-  useEffect(() => {
-    const el = videoRef.current
-    if (!el || !selected) return
-    if (Math.abs(el.currentTime - selected.playbackPositionSeconds) > 1.5) {
-      el.currentTime = selected.playbackPositionSeconds
-    }
-    el.playbackRate = snapshot.settings.playbackSpeed
-  }, [selected?.id, mediaUrl, selected?.playbackPositionSeconds, snapshot.settings.playbackSpeed])
-
   const caption = snapshot.improvedCaption ?? snapshot.caption
   const jobs = snapshot.jobs.filter((job) => job.status === "running" || job.status === "failed")
-  const courseItems = Object.fromEntries(snapshot.courses.map((course) => [course.id, course.name]))
+  const rtl = snapshot.direction === "rtl"
+  const LibraryToggleIcon = libraryOpen
+    ? rtl
+      ? PanelRightClose
+      : PanelLeftClose
+    : rtl
+      ? PanelRightOpen
+      : PanelLeftOpen
+  const ToolsToggleIcon = toolsOpen
+    ? rtl
+      ? PanelLeftClose
+      : PanelRightClose
+    : rtl
+      ? PanelLeftOpen
+      : PanelRightOpen
+
+  function toggleLibrary(): void {
+    const panel = libraryPanelRef.current
+    if (!panel) return
+    if (panel.isCollapsed()) panel.expand()
+    else panel.collapse()
+  }
+
+  function toggleTools(): void {
+    const panel = toolsPanelRef.current
+    if (!panel) return
+    if (panel.isCollapsed()) panel.expand()
+    else panel.collapse()
+  }
+
+  useEffect(() => {
+    return window.doorei.onShortcut((action) => {
+      if (action === "openSettings") setSettingsOpen(true)
+      if (action === "toggleActionPanel") setActionPanelOpen((open) => !open)
+      if (action === "toggleLibrary") toggleLibrary()
+      if (action === "toggleToolPane") toggleTools()
+      if (action === "toggleNote") {
+        setComposerOpen((open) => {
+          const next = !open
+          saveComposerOpen(next)
+          return next
+        })
+      }
+    })
+  }, [])
 
   async function addVideos(
     picker: () => Promise<string[]>,
@@ -135,51 +173,98 @@ export function Shell({ snapshot }: Props) {
     <div className="relative flex h-full min-h-0 flex-col">
       <AppBackdrop nativeGlass={nativeGlass} />
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
-        <ResizablePanel defaultSize="22%" minSize="14%" maxSize="40%" className="min-h-0">
-          <aside className="flex h-full min-h-0 flex-col border-e text-sidebar-foreground">
-            <div className="grid gap-2 p-3 pt-8">
-              <Select
-                value={snapshot.selectedCourseId}
-                items={courseItems}
-                onValueChange={(value) => {
-                  if (value) void window.doorei.call("selectCourse", value)
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t(lang, "emptyLibrary")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {snapshot.courses.map((course) => (
-                    <SelectItem key={course.id} value={course.id}>
-                      {course.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2">
-                <Button className="flex-1" variant="outline" size="sm" onClick={() => setPrompt({ kind: "course" })}>
-                  <Plus />
-                  {t(lang, "newCourse")}
-                </Button>
-                {snapshot.selectedCourseId ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger render={<Button variant="outline" size="icon-sm" />}>
-                      <Pencil />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuItem onClick={() => setPrompt({ kind: "rename" })}>
-                        {t(lang, "renameCourse")}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : null}
-              </div>
-            </div>
+      <header
+        className={cn(
+          "titlebar relative flex h-11 shrink-0 items-center justify-between border-b border-white/10 bg-black/50 pe-2 backdrop-blur-xl backdrop-saturate-150",
+          nativeGlass ? "pl-[76px]" : "ps-2"
+        )}
+      >
+        <span className="titlebar-control">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground"
+                  aria-expanded={libraryOpen}
+                  aria-label={t(lang, libraryOpen ? "hideLibrary" : "showLibrary")}
+                  onClick={toggleLibrary}
+                />
+              }
+            >
+              <LibraryToggleIcon />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {t(lang, libraryOpen ? "hideLibrary" : "showLibrary")}
+            </TooltipContent>
+          </Tooltip>
+        </span>
+        <span className="titlebar-control absolute start-1/2 top-1/2 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2">
+          <CourseCommand
+            snapshot={snapshot}
+            lang={lang}
+            open={actionPanelOpen}
+            onOpenChange={setActionPanelOpen}
+            onNewCourse={() => setPrompt({ kind: "course" })}
+            onRenameCourse={() => setPrompt({ kind: "rename" })}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onToggleNote={() => {
+              setComposerOpen((open) => {
+                const next = !open
+                saveComposerOpen(next)
+                return next
+              })
+            }}
+            onToggleLibrary={toggleLibrary}
+            onToggleToolPane={toggleTools}
+          />
+        </span>
+        <span className="titlebar-control">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground"
+                  aria-expanded={toolsOpen}
+                  aria-label={t(lang, toolsOpen ? "hideToolPane" : "showToolPane")}
+                  onClick={toggleTools}
+                />
+              }
+            >
+              <ToolsToggleIcon />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {t(lang, toolsOpen ? "hideToolPane" : "showToolPane")}
+            </TooltipContent>
+          </Tooltip>
+        </span>
+      </header>
+      <ResizablePanelGroup
+        id="shell"
+        orientation="horizontal"
+        className="min-h-0 flex-1"
+        defaultLayout={shellLayout}
+        onLayoutChanged={saveShellLayout}
+      >
+        <ResizablePanel
+          id="library"
+          panelRef={libraryPanelRef}
+          className="min-h-0 overflow-hidden"
+          collapsible
+          collapsedSize={0}
+          defaultSize="22%"
+          minSize="14%"
+          maxSize="40%"
+          onResize={(size) => setLibraryOpen(size.inPixels > 8)}
+        >
+          <aside className="flex h-full min-h-0 flex-col overflow-hidden border-e text-sidebar-foreground">
             {snapshot.selectedCourseId ? (
-              <div className="flex items-center justify-between gap-2 px-3 pt-1 pb-1">
+              <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-1">
                 <span className="truncate text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                  {snapshot.selectedCourseName ?? t(lang, "sessions")}
+                  {t(lang, "sessions")}
                 </span>
                 <Tooltip>
                   <TooltipTrigger
@@ -199,7 +284,9 @@ export function Shell({ snapshot }: Props) {
                   <TooltipContent>{t(lang, "newSession")}</TooltipContent>
                 </Tooltip>
               </div>
-            ) : null}
+            ) : (
+              <p className="px-3 pt-3 pb-1 text-xs text-muted-foreground">{t(lang, "emptyLibrary")}</p>
+            )}
             <ScrollArea className="min-h-0 flex-1 px-2 pb-2">
               <LibraryTree
                 snapshot={snapshot}
@@ -210,7 +297,7 @@ export function Shell({ snapshot }: Props) {
             <Separator />
             <Button
               variant="ghost"
-              className="justify-start rounded-none px-4 py-6"
+              className="h-10 shrink-0 justify-start rounded-none px-4"
               onClick={() => setSettingsOpen(true)}
             >
               <Settings />
@@ -218,142 +305,153 @@ export function Shell({ snapshot }: Props) {
             </Button>
           </aside>
         </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize="53%" minSize="30%" className="min-h-0">
-          <main className="flex h-full min-h-0 flex-col p-4">
-            {selected && mediaUrl && !selected.fileMissing ? (
-              <video
-                ref={videoRef}
-                className="max-h-[62%] w-full rounded-xl bg-black"
-                src={mediaUrl}
-                controls
-                onTimeUpdate={(event) => {
-                  void window.doorei.call("setPlaybackPosition", event.currentTarget.currentTime)
-                }}
-                onEnded={() => {
-                  void window.doorei.call("markEnded")
-                  if (snapshot.settings.confetti) fireConfetti()
-                  void window.doorei.call("nextVideoId").then((id) => {
-                    if (snapshot.settings.autoplay && typeof id === "string") {
-                      void window.doorei.call("selectVideo", id)
-                    }
-                  })
-                }}
-              />
-            ) : (
-              <div className="flex max-h-[62%] flex-1 items-center justify-center rounded-xl border border-dashed text-muted-foreground">
-                {selected?.fileMissing ? t(lang, "fileMissing") : t(lang, "noVideo")}
-              </div>
-            )}
-            {caption && snapshot.settings.subtitlesVisible && selected && !selected.fileMissing ? (
-              <p className="mt-2 min-h-10 text-center text-sm">
-                {activeCaption(
-                  caption.segments,
-                  videoRef.current?.currentTime ?? selected.playbackPositionSeconds
-                )}
-              </p>
-            ) : null}
-            {selected?.fileMissing ? (
-              <div className="mt-3 flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    const path = await window.doorei.pickFile()
-                    if (path && selected) void window.doorei.call("relinkVideo", selected.id, path)
+        {libraryOpen ? <ResizableHandle withHandle /> : null}
+        <ResizablePanel id="player" defaultSize="53%" minSize="30%" className="min-h-0">
+          <main className="flex h-full min-h-0 flex-col">
+            <div className="relative min-h-0 flex-1 bg-black">
+              {selected && mediaUrl && !selected.fileMissing ? (
+                <Player
+                  key={selected.id}
+                  videoRef={videoRef}
+                  src={mediaUrl}
+                  lang={lang}
+                  startSeconds={selected.playbackPositionSeconds}
+                  playbackSpeed={snapshot.settings.playbackSpeed}
+                  subtitlesVisible={snapshot.settings.subtitlesVisible}
+                  captionColor={snapshot.settings.captionColor}
+                  captionBackground={snapshot.settings.captionBackground}
+                  segments={caption?.segments ?? []}
+                  onTimeUpdate={(time) => {
+                    setPlaybackTime(time)
+                    const now = Date.now()
+                    if (now - lastPosWrite.current < 800) return
+                    lastPosWrite.current = now
+                    void window.doorei.call("setPlaybackPosition", time)
                   }}
-                >
-                  {t(lang, "relink")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    const toDir = await window.doorei.pickDirectory()
-                    if (toDir) setPrompt({ kind: "from-folder", toDir })
+                  onEnded={() => {
+                    void window.doorei.call("markEnded")
+                    if (snapshot.settings.confetti) fireConfetti()
+                    void window.doorei.call("nextVideoId").then((id) => {
+                      if (snapshot.settings.autoplay && typeof id === "string") {
+                        void window.doorei.call("selectVideo", id)
+                      }
+                    })
                   }}
-                >
-                  {t(lang, "relinkFolder")}
-                </Button>
-              </div>
+                  onPlaybackSpeedChange={(speed) => {
+                    void window.doorei.call("updateSettings", { playbackSpeed: speed })
+                  }}
+                  onSubtitlesVisibleChange={(visible) => {
+                    void window.doorei.call("updateSettings", { subtitlesVisible: visible })
+                  }}
+                  onCaptionStyleChange={(style) => {
+                    void window.doorei.call("updateSettings", style)
+                  }}
+                />
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                  <span>{selected?.fileMissing ? t(lang, "fileMissing") : t(lang, "noVideo")}</span>
+                  {selected?.fileMissing ? (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const path = await window.doorei.pickFile()
+                          if (path && selected) void window.doorei.call("relinkVideo", selected.id, path)
+                        }}
+                      >
+                        {t(lang, "relink")}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const toDir = await window.doorei.pickDirectory()
+                          if (toDir) setPrompt({ kind: "from-folder", toDir })
+                        }}
+                      >
+                        {t(lang, "relinkFolder")}
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+            {composerOpen ? (
+              <form
+                className="grid h-44 shrink-0 grid-rows-[minmax(0,1fr)_auto] border-t"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  if (!note.trim() || !selected) return
+                  const timestampSeconds = stampOn
+                    ? (videoRef.current?.currentTime ?? selected.playbackPositionSeconds)
+                    : null
+                  void window.doorei.call("addNote", { text: note.trim(), timestampSeconds })
+                  setNote("")
+                }}
+              >
+                <div className="min-h-0 px-3 pt-2">
+                  <Textarea
+                    className="h-full min-h-0 resize-none border-0 bg-transparent p-0 shadow-none field-sizing-fixed focus-visible:ring-0 dark:bg-transparent"
+                    placeholder={t(lang, "composerPlaceholder")}
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-between border-t px-3 py-2">
+                  <Label className="font-normal text-muted-foreground">
+                    <Checkbox
+                      checked={stampOn}
+                      onCheckedChange={(checked) => setStampOn(checked === true)}
+                    />
+                    {t(lang, "timestamp")}
+                  </Label>
+                  <Button type="submit" disabled={!note.trim() || !selected}>
+                    {t(lang, "save")}
+                  </Button>
+                </div>
+              </form>
             ) : null}
-            <form
-              className="mt-auto flex items-end gap-2 pt-3"
-              onSubmit={(event) => {
-                event.preventDefault()
-                if (!note.trim() || !selected) return
-                const timestampSeconds = stampOn
-                  ? (videoRef.current?.currentTime ?? selected.playbackPositionSeconds)
-                  : null
-                void window.doorei.call("addNote", { text: note.trim(), timestampSeconds })
-                setNote("")
-              }}
-            >
-              <Textarea
-                className="min-h-16 flex-1 resize-none"
-                placeholder={t(lang, "composerPlaceholder")}
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-              />
-              <Label className="flex items-center gap-1 font-normal text-muted-foreground">
-                <Checkbox checked={stampOn} onCheckedChange={setStampOn} />
-                {t(lang, "timestamp")}
-              </Label>
-              <Button type="submit">{t(lang, "notes")}</Button>
-            </form>
           </main>
         </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize="25%" minSize="18%" maxSize="46%" className="min-h-0">
-          <div className="flex h-full min-h-0">
-            <section className="min-w-0 flex-1 border-s">
-              <ToolPane
-                snapshot={snapshot}
-                lang={lang}
-                query={query}
-                setQuery={setQuery}
-                question={question}
-                setQuestion={setQuestion}
-                scope={scope}
-                setScope={setScope}
-                onSeek={(seconds) => {
-                  if (videoRef.current && seconds != null) videoRef.current.currentTime = seconds
-                }}
-                onEditNote={(id, text) => setPrompt({ kind: "note", id, text })}
-              />
-            </section>
-            <nav className="flex w-12 flex-col items-center gap-1 border-s py-3">
-              {ACTIVITIES.map(([id, Icon]) => (
-                <Tooltip key={id}>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        variant={snapshot.activity === id ? "secondary" : "ghost"}
-                        size="icon-sm"
-                        onClick={() => void window.doorei.call("setActivity", id satisfies Activity)}
-                      />
-                    }
-                  >
-                    <Icon />
-                  </TooltipTrigger>
-                  <TooltipContent>{t(lang, id)}</TooltipContent>
-                </Tooltip>
-              ))}
-            </nav>
-          </div>
+        {toolsOpen ? <ResizableHandle withHandle /> : null}
+        <ResizablePanel
+          id="tools"
+          panelRef={toolsPanelRef}
+          className="min-h-0 overflow-hidden"
+          collapsible
+          collapsedSize={0}
+          defaultSize="25%"
+          minSize="18%"
+          maxSize="46%"
+          onResize={(size) => setToolsOpen(size.inPixels > 8)}
+        >
+          <section className="h-full min-h-0 min-w-0 border-s">
+            <ToolPane
+              snapshot={snapshot}
+              lang={lang}
+              query={query}
+              setQuery={setQuery}
+              question={question}
+              setQuestion={setQuestion}
+              scope={scope}
+              setScope={setScope}
+              onSeek={(seconds) => {
+                if (videoRef.current && seconds != null) {
+                  videoRef.current.currentTime = seconds
+                  setPlaybackTime(seconds)
+                }
+              }}
+              currentTime={playbackTime}
+              onEditNote={(id, text) => setPrompt({ kind: "note", id, text })}
+            />
+          </section>
         </ResizablePanel>
       </ResizablePanelGroup>
-      <footer className="flex items-center justify-between border-t px-4 py-1.5 text-xs text-muted-foreground">
+      <footer className="flex items-center justify-between border-t border-white/10 bg-black/50 px-4 py-1 text-xs text-muted-foreground backdrop-blur-xl backdrop-saturate-150">
         <span>{snapshot.selectedCourseName ?? t(lang, "appName")}</span>
-        <span>
-          {jobs.length
-            ? jobs
-                .map(
-                  (job) =>
-                    `${job.kind}:${job.status}${job.progress ? ` ${Math.round(job.progress * 100)}%` : ""}${job.error ? ` ${job.error}` : ""}`
-                )
-                .join(" · ")
-            : t(lang, "jobs")}
+        <span className="min-w-0 flex-1 truncate px-3 text-center" title={jobStatusLine(snapshot, jobs)}>
+          {jobs.length ? jobStatusLine(snapshot, jobs) : t(lang, "jobs")}
         </span>
         <span>
           {snapshot.providerConfigured ? t(lang, "providerOn") : t(lang, "providerOff")}
@@ -498,13 +596,6 @@ export function Shell({ snapshot }: Props) {
   )
 }
 
-function activeCaption(
-  segments: { startSeconds: number; endSeconds: number; text: string }[],
-  time: number
-): string {
-  return segments.find((segment) => time >= segment.startSeconds && time <= segment.endSeconds)?.text ?? ""
-}
-
 function fireConfetti(): void {
   const node = document.createElement("div")
   node.textContent = "✦"
@@ -512,4 +603,70 @@ function fireConfetti(): void {
     "position:fixed;inset:0;display:grid;place-items:center;font-size:64px;pointer-events:none;z-index:50"
   document.body.append(node)
   setTimeout(() => node.remove(), 800)
+}
+
+const SHELL_LAYOUT_KEY = "doorei.shell-layout"
+const COMPOSER_OPEN_KEY = "doorei.composer-open"
+const DEFAULT_SHELL_LAYOUT = { library: 22, player: 53, tools: 25 }
+
+function jobStatusLine(snapshot: LibrarySnapshot, jobs: Job[]): string {
+  return jobs
+    .map((job) => {
+      const name = snapshot.videos.find((video) => video.id === job.videoId)?.name
+      const file = name ? ` ${name}` : ""
+      const percent = job.progress ? ` ${Math.round(job.progress * 100)}%` : ""
+      const error = job.error ? ` ${job.error}` : ""
+      return `${job.kind}:${job.status}${file}${percent}${error}`
+    })
+    .join(" · ")
+}
+
+function loadComposerOpen(): boolean {
+  try {
+    return localStorage.getItem(COMPOSER_OPEN_KEY) !== "0"
+  } catch {
+    return true
+  }
+}
+
+function saveComposerOpen(open: boolean): void {
+  try {
+    localStorage.setItem(COMPOSER_OPEN_KEY, open ? "1" : "0")
+  } catch {
+    /* quota or private mode */
+  }
+}
+
+function loadShellLayout(): { library: number; player: number; tools: number } {
+  try {
+    const raw = localStorage.getItem(SHELL_LAYOUT_KEY)
+    if (!raw) return DEFAULT_SHELL_LAYOUT
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== "object") return DEFAULT_SHELL_LAYOUT
+    const record = parsed as Record<string, unknown>
+    const library = record.library
+    const player = record.player
+    const tools = record.tools
+    if (
+      typeof library !== "number" ||
+      typeof player !== "number" ||
+      typeof tools !== "number" ||
+      !Number.isFinite(library) ||
+      !Number.isFinite(player) ||
+      !Number.isFinite(tools)
+    ) {
+      return DEFAULT_SHELL_LAYOUT
+    }
+    return { library, player, tools }
+  } catch {
+    return DEFAULT_SHELL_LAYOUT
+  }
+}
+
+function saveShellLayout(layout: { [panelId: string]: number }): void {
+  try {
+    localStorage.setItem(SHELL_LAYOUT_KEY, JSON.stringify(layout))
+  } catch {
+    /* quota or private mode */
+  }
 }

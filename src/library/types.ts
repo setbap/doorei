@@ -3,7 +3,7 @@ import type { REQUIRED_MODELS } from "./models.js"
 export type AppLanguage = "fa" | "en"
 export type SpokenLanguage = "fa" | "en"
 export type SearchScope = "video" | "session" | "course"
-export type Activity = "search" | "ask" | "summary" | "notes"
+export type Activity = "search" | "ask" | "summary" | "notes" | "captions"
 export type CaptionSource = "imported" | "asr"
 export type JobKind = "captioning" | "improve" | "summary" | "embed"
 export type JobStatus = "queued" | "running" | "complete" | "failed" | "off"
@@ -32,6 +32,8 @@ export type PlayerSettings = {
   playbackSpeed: number
   subtitlesVisible: boolean
   autoMarkWatchedAtEnd: boolean
+  captionColor: string
+  captionBackground: string
 }
 
 export type HitKind = "caption" | "note"

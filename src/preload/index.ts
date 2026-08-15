@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron"
 import type { LibrarySnapshot } from "../library/index.js"
+import type { ShortcutId } from "../main/shortcuts.js"
 
 const api = {
   platform: process.platform,
@@ -16,7 +17,12 @@ const api = {
   pickFolderVideos: (): Promise<string[]> => ipcRenderer.invoke("dialog:folder"),
   pickFile: (): Promise<string | null> => ipcRenderer.invoke("dialog:file"),
   pickDirectory: (): Promise<string | null> => ipcRenderer.invoke("dialog:directory"),
-  openUrl: (url: string): Promise<void> => ipcRenderer.invoke("shell:open-url", url)
+  openUrl: (url: string): Promise<void> => ipcRenderer.invoke("shell:open-url", url),
+  onShortcut: (listener: (action: ShortcutId) => void): (() => void) => {
+    const handler = (_event: unknown, action: ShortcutId) => listener(action)
+    ipcRenderer.on("shortcut", handler)
+    return () => ipcRenderer.removeListener("shortcut", handler)
+  }
 }
 
 contextBridge.exposeInMainWorld("doorei", api)

@@ -1,7 +1,10 @@
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { pathToFileURL } from "node:url"
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, protocol, net, shell } from "electron"
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, protocol, shell } from "electron"
+import { mediaResponse, toMediaUrl } from "./mediaProtocol.js"
+import { startMediaServer } from "./mediaServer.js"
+import { installShortcuts } from "./installShortcuts.js"
+import type { ShortcutId } from "./shortcuts.js"
 import { createLibrary, type Library, type LibrarySnapshot } from "../library/index.js"
 import { createDiskModelStore } from "../adapters/modelStore.js"
 import { createNodeMedia, videoPathsInFolder } from "../adapters/media.js"
@@ -12,7 +15,14 @@ import { createProviderClient } from "../adapters/provider.js"
 protocol.registerSchemesAsPrivileged([
   {
     scheme: "media",
-    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true }
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true,
+      bypassCSP: true
+    }
   }
 ])
 
@@ -54,9 +64,8 @@ function createMainWindow(): void {
     }
   })
 
-  mainWindow.webContents.session.protocol.handle("media", (request) => {
-    const filePath = decodeURIComponent(request.url.replace(/^media:\/\//, "").replace(/^\/+/, "/"))
-    return net.fetch(pathToFileURL(filePath).href)
+  installShortcuts(mainWindow, (id: ShortcutId) => {
+    mainWindow?.webContents.send("shortcut", id)
   })
 
   mainWindow.on("ready-to-show", () => mainWindow?.show())
@@ -104,7 +113,9 @@ const LIBRARY_METHODS = new Set([
   "regenerateCaption"
 ])
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  const media = await startMediaServer()
+  protocol.handle("media", (request) => mediaResponse(request))
   const { dataDir, modelsRoot } = dataPaths()
   library = createLibrary({
     dataDir,
@@ -127,10 +138,7 @@ app.whenReady().then(() => {
     const target = library[method as keyof Library] as (...params: unknown[]) => unknown
     return await target(...args)
   })
-  ipcMain.handle("media:url", (_event, filePath: string) => {
-    const encoded = encodeURI(`media://${filePath}`)
-    return encoded
-  })
+  ipcMain.handle("media:url", (_event, filePath: string) => toMediaUrl(filePath, media.origin))
   ipcMain.handle("dialog:videos", async () => {
     const result = await dialog.showOpenDialog({
       properties: ["openFile", "multiSelections"],

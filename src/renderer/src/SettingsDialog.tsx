@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 import { ProviderFields } from "./ProviderFields"
 import { t } from "./uiText"
 
@@ -33,6 +34,11 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
+
+const glassDialog =
+  "rounded-[20px] border border-neutral-800/10 bg-neutral-950/45 p-0 text-neutral-100 shadow-[0_24px_80px_rgba(0,0,0,0.45)] ring-1 ring-inset ring-neutral-500/15 backdrop-blur-2xl backdrop-saturate-150"
+
+const tabPanelClass = "min-h-72 overflow-y-auto pb-1"
 
 export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
   const [kind, setKind] = useState<ProviderFieldKind>(snapshot.provider?.kind ?? "none")
@@ -48,91 +54,99 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent
+        overlayClassName="bg-black/40 backdrop-blur-md"
+        className={cn("flex max-h-[85vh] flex-col overflow-hidden sm:max-w-lg", glassDialog)}
+      >
+        <DialogHeader className="px-5 pt-5 pb-3">
           <DialogTitle>{t(lang, "settings")}</DialogTitle>
         </DialogHeader>
-        <Tabs defaultValue="player" className="min-w-0">
-          <TabsList variant="line" className="w-full">
+        <Tabs defaultValue="player" className="min-h-0 min-w-0 flex-1 gap-3 px-5">
+          <TabsList className="h-9 w-full shrink-0 bg-white/8">
             <TabsTrigger value="player">{t(lang, "settingsPlayer")}</TabsTrigger>
             <TabsTrigger value="language">{t(lang, "settingsLanguage")}</TabsTrigger>
             <TabsTrigger value="provider">{t(lang, "settingsProvider")}</TabsTrigger>
             <TabsTrigger value="prompts">{t(lang, "settingsPrompts")}</TabsTrigger>
           </TabsList>
-          <TabsContent value="player" className="mt-4 grid gap-4">
-            <SettingCheck
-              checked={snapshot.settings.autoplay}
-              label={t(lang, "autoplay")}
-              onCheckedChange={(checked) =>
-                void window.doorei.call("updateSettings", { autoplay: checked })
-              }
-            />
-            <SettingCheck
-              checked={snapshot.settings.confetti}
-              label={t(lang, "confetti")}
-              onCheckedChange={(checked) =>
-                void window.doorei.call("updateSettings", { confetti: checked })
-              }
-            />
-            <SettingCheck
-              checked={snapshot.settings.subtitlesVisible}
-              label={t(lang, "subtitles")}
-              onCheckedChange={(checked) =>
-                void window.doorei.call("updateSettings", { subtitlesVisible: checked })
-              }
-            />
-            <SettingCheck
-              checked={snapshot.settings.autoMarkWatchedAtEnd}
-              label={t(lang, "markWatchedAtEnd")}
-              onCheckedChange={(checked) =>
-                void window.doorei.call("updateSettings", { autoMarkWatchedAtEnd: checked })
-              }
-            />
-            <div className="grid gap-2">
-              <Label htmlFor="speed">{t(lang, "speed")}</Label>
-              <Input
-                id="speed"
-                type="number"
-                step="0.25"
-                min="0.5"
-                max="3"
-                value={snapshot.settings.playbackSpeed}
-                onChange={(event) =>
-                  void window.doorei.call("updateSettings", {
-                    playbackSpeed: Number(event.target.value)
-                  })
+          <TabsContent value="player" className={tabPanelClass}>
+            <div className="overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/8">
+              <SettingCheck
+                checked={snapshot.settings.autoplay}
+                label={t(lang, "autoplay")}
+                onCheckedChange={(checked) =>
+                  void window.doorei.call("updateSettings", { autoplay: checked })
                 }
+              />
+              <SettingCheck
+                checked={snapshot.settings.confetti}
+                label={t(lang, "confetti")}
+                onCheckedChange={(checked) =>
+                  void window.doorei.call("updateSettings", { confetti: checked })
+                }
+              />
+              <SettingCheck
+                checked={snapshot.settings.subtitlesVisible}
+                label={t(lang, "subtitles")}
+                onCheckedChange={(checked) =>
+                  void window.doorei.call("updateSettings", { subtitlesVisible: checked })
+                }
+              />
+              <SettingCheck
+                checked={snapshot.settings.autoMarkWatchedAtEnd}
+                label={t(lang, "markWatchedAtEnd")}
+                onCheckedChange={(checked) =>
+                  void window.doorei.call("updateSettings", { autoMarkWatchedAtEnd: checked })
+                }
+              />
+              <Label className="flex items-center justify-between gap-3 px-3 py-2.5 font-normal">
+                <span>{t(lang, "speed")}</span>
+                <Input
+                  id="speed"
+                  type="number"
+                  step="0.25"
+                  min="0.5"
+                  max="3"
+                  className="h-6 w-14 [appearance:textfield] border-white/10 bg-transparent px-1.5 text-center text-sm tabular-nums dark:bg-transparent [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  value={snapshot.settings.playbackSpeed}
+                  onChange={(event) =>
+                    void window.doorei.call("updateSettings", {
+                      playbackSpeed: Number(event.target.value)
+                    })
+                  }
+                />
+              </Label>
+            </div>
+          </TabsContent>
+          <TabsContent value="language" className={tabPanelClass}>
+            <div className="grid gap-4">
+              <LanguageField
+                id="app-language"
+                label={t(lang, "appLanguage")}
+                hint={t(lang, "appLanguageHint")}
+                value={lang}
+                items={languageItems}
+                onValueChange={(value) => void window.doorei.call("chooseAppLanguage", value)}
+              />
+              <LanguageField
+                id="spoken-default"
+                label={t(lang, "courseAsrLanguage")}
+                hint={t(lang, "courseAsrLanguageHint")}
+                value={snapshot.spokenLanguageDefault}
+                items={languageItems}
+                onValueChange={(value) =>
+                  void window.doorei.call("setSpokenLanguageDefault", value)
+                }
+              />
+              <LanguageField
+                id="output-language"
+                label={t(lang, "outputLanguage")}
+                value={snapshot.outputLanguage}
+                items={languageItems}
+                onValueChange={(value) => void window.doorei.call("setOutputLanguage", value)}
               />
             </div>
           </TabsContent>
-          <TabsContent value="language" className="mt-4 grid gap-4">
-            <LanguageField
-              id="app-language"
-              label={t(lang, "appLanguage")}
-              hint={t(lang, "appLanguageHint")}
-              value={lang}
-              items={languageItems}
-              onValueChange={(value) => void window.doorei.call("chooseAppLanguage", value)}
-            />
-            <LanguageField
-              id="spoken-default"
-              label={t(lang, "courseAsrLanguage")}
-              hint={t(lang, "courseAsrLanguageHint")}
-              value={snapshot.spokenLanguageDefault}
-              items={languageItems}
-              onValueChange={(value) =>
-                void window.doorei.call("setSpokenLanguageDefault", value)
-              }
-            />
-            <LanguageField
-              id="output-language"
-              label={t(lang, "outputLanguage")}
-              value={snapshot.outputLanguage}
-              items={languageItems}
-              onValueChange={(value) => void window.doorei.call("setOutputLanguage", value)}
-            />
-          </TabsContent>
-          <TabsContent value="provider" className="mt-4">
+          <TabsContent value="provider" className={tabPanelClass}>
             <ProviderFields
               lang={lang}
               kind={kind}
@@ -143,35 +157,40 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
               onKeyChange={setKey}
             />
           </TabsContent>
-          <TabsContent value="prompts" className="mt-4 grid gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="improve-prompt">{t(lang, "improvePrompt")}</Label>
-              <Textarea
-                id="improve-prompt"
-                value={improve}
-                onChange={(event) => setImprove(event.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="summary-prompt">{t(lang, "summaryPrompt")}</Label>
-              <Textarea
-                id="summary-prompt"
-                value={summary}
-                onChange={(event) => setSummary(event.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="ask-prompt">{t(lang, "askPrompt")}</Label>
-              <Textarea
-                id="ask-prompt"
-                value={ask}
-                onChange={(event) => setAsk(event.target.value)}
-              />
+          <TabsContent value="prompts" className={tabPanelClass}>
+            <div className="grid gap-3">
+              <div className="grid gap-2">
+                <Label htmlFor="improve-prompt">{t(lang, "improvePrompt")}</Label>
+                <Textarea
+                  id="improve-prompt"
+                  className="bg-white/5"
+                  value={improve}
+                  onChange={(event) => setImprove(event.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="summary-prompt">{t(lang, "summaryPrompt")}</Label>
+                <Textarea
+                  id="summary-prompt"
+                  className="bg-white/5"
+                  value={summary}
+                  onChange={(event) => setSummary(event.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="ask-prompt">{t(lang, "askPrompt")}</Label>
+                <Textarea
+                  id="ask-prompt"
+                  className="bg-white/5"
+                  value={ask}
+                  onChange={(event) => setAsk(event.target.value)}
+                />
+              </div>
             </div>
           </TabsContent>
         </Tabs>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="px-5 pt-2 pb-5">
+          <Button variant="outline" className="bg-white/5" onClick={() => onOpenChange(false)}>
             {t(lang, "cancel")}
           </Button>
           <Button
@@ -204,9 +223,9 @@ function SettingCheck({
   onCheckedChange: (checked: boolean) => void
 }) {
   return (
-    <Label className="flex items-center gap-2 font-normal">
+    <Label className="flex items-center justify-between gap-3 border-b border-white/8 px-3 py-2.5 font-normal last:border-b-0">
+      <span>{label}</span>
       <Checkbox checked={checked} onCheckedChange={onCheckedChange} />
-      {label}
     </Label>
   )
 }
@@ -239,7 +258,7 @@ function LanguageField({
           if (next === "fa" || next === "en") onValueChange(next)
         }}
       >
-        <SelectTrigger id={id} className="w-full">
+        <SelectTrigger id={id} className="w-full bg-white/5">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

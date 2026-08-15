@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import { ChevronDown, ChevronRight, Folder, FolderOpen, Plus } from "lucide-react"
+import { useEffect, useMemo, useRef, useState, type ComponentType, type MutableRefObject, type ReactNode } from "react"
+import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, Plus } from "lucide-react"
 import type {
   AppLanguage,
+  Job,
   LibrarySnapshot,
   SessionRecord,
   VideoRecord
@@ -17,9 +18,19 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from "@/components/ui/context-menu"
+import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
@@ -302,7 +313,7 @@ function SessionBranch({
       </div>
       {open ? (
         <div
-          className="mb-1 ms-[1.05rem] border-s ps-2"
+          className="mb-1 ms-[1.05rem] ps-2"
           onDragOver={(event) => {
             if (dragged?.kind !== "video") return
             event.stopPropagation()
@@ -324,70 +335,218 @@ function SessionBranch({
           {videos.length === 0 ? (
             <p className="px-2 py-1.5 text-xs text-muted-foreground">{t(lang, "noVideosInSession")}</p>
           ) : (
-            videos.map((video) => {
-              const videoHint = dropTarget?.kind === "video" && dropTarget.id === video.id ? dropTarget.placement : null
-              return (
-                <Button
-                  key={video.id}
-                  draggable
-                  variant={video.id === snapshot.selectedVideoId ? "secondary" : "ghost"}
-                  className={cn(
-                    "mt-0.5 h-auto w-full cursor-grab justify-between py-1.5 active:cursor-grabbing",
-                    dragged?.kind === "video" && dragged.id === video.id && "opacity-50",
-                    videoHint === "before" && "shadow-[inset_0_2px_0_0_var(--sidebar-foreground)]",
-                    videoHint === "after" && "shadow-[inset_0_-2px_0_0_var(--sidebar-foreground)]"
-                  )}
-                  onDragStart={(event) => {
-                    event.stopPropagation()
-                    event.dataTransfer.effectAllowed = "move"
-                    event.dataTransfer.setData("text/plain", video.id)
-                    skipClick.current = true
-                    onDragged({ kind: "video", id: video.id })
-                  }}
-                  onDragEnd={() => {
-                    onDragged(null)
-                    onDropTarget(null)
-                    window.setTimeout(() => {
-                      skipClick.current = false
-                    }, 0)
-                  }}
-                  onDragOver={(event) => {
-                    event.stopPropagation()
-                    if (!dragged) return
-                    const placement = placementFor(event, "video")
-                    if (placement === "into") return
-                    const target = { kind: "video" as const, id: video.id, placement }
-                    if (!treeDropCommand(snapshot, dragged, target)) {
-                      onDropTarget(null)
-                      return
-                    }
-                    event.preventDefault()
-                    onDropTarget(target)
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    const placement = placementFor(event, "video")
-                    if (placement === "into") return
-                    void onCommit({ kind: "video", id: video.id, placement })
-                  }}
-                  onClick={() => {
-                    if (skipClick.current) return
-                    void window.doorei.call("selectVideo", video.id)
-                  }}
-                >
-                  <span className="truncate">{video.name}</span>
-                  <span className="flex items-center gap-1">
-                    {video.watched ? <Badge variant="secondary">✓</Badge> : null}
-                    {video.fileMissing ? <Badge variant="outline">!</Badge> : null}
-                  </span>
-                </Button>
-              )
-            })
+            videos.map((video) => (
+              <VideoRow
+                key={video.id}
+                video={video}
+                snapshot={snapshot}
+                lang={lang}
+                dragged={dragged}
+                dropTarget={dropTarget}
+                skipClick={skipClick}
+                onDragged={onDragged}
+                onDropTarget={onDropTarget}
+                placementFor={placementFor}
+                onCommit={onCommit}
+              />
+            ))
           )}
         </div>
       ) : null}
     </div>
+  )
+}
+
+function VideoRow({
+  video,
+  snapshot,
+  lang,
+  dragged,
+  dropTarget,
+  skipClick,
+  onDragged,
+  onDropTarget,
+  placementFor,
+  onCommit
+}: {
+  video: VideoRecord
+  snapshot: LibrarySnapshot
+  lang: AppLanguage
+  dragged: TreeDragged | null
+  dropTarget: TreeDropTarget | null
+  skipClick: MutableRefObject<boolean>
+  onDragged: (dragged: TreeDragged | null) => void
+  onDropTarget: (dropTarget: TreeDropTarget | null) => void
+  placementFor: (
+    event: { clientY: number; currentTarget: EventTarget & HTMLElement },
+    targetKind: TreeDropTarget["kind"]
+  ) => TreeDropTarget["placement"]
+  onCommit: (target: TreeDropTarget) => Promise<void>
+}) {
+  const videoHint = dropTarget?.kind === "video" && dropTarget.id === video.id ? dropTarget.placement : null
+  const selected = video.id === snapshot.selectedVideoId
+  const failedJobs = snapshot.jobs.filter((job) => job.videoId === video.id && job.status === "failed")
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger
+        className={cn(
+          "group/video mt-0.5 flex items-center gap-0.5 rounded-md",
+          dragged?.kind === "video" && dragged.id === video.id && "opacity-50",
+          videoHint === "before" && "shadow-[inset_0_2px_0_0_var(--sidebar-foreground)]",
+          videoHint === "after" && "shadow-[inset_0_-2px_0_0_var(--sidebar-foreground)]"
+        )}
+      >
+        <Button
+          draggable
+          variant={selected ? "secondary" : "ghost"}
+          className="h-auto min-w-0 flex-1 cursor-grab justify-between py-1.5 active:cursor-grabbing"
+          onDragStart={(event) => {
+            event.stopPropagation()
+            event.dataTransfer.effectAllowed = "move"
+            event.dataTransfer.setData("text/plain", video.id)
+            skipClick.current = true
+            onDragged({ kind: "video", id: video.id })
+          }}
+          onDragEnd={() => {
+            onDragged(null)
+            onDropTarget(null)
+            window.setTimeout(() => {
+              skipClick.current = false
+            }, 0)
+          }}
+          onDragOver={(event) => {
+            event.stopPropagation()
+            if (!dragged) return
+            const placement = placementFor(event, "video")
+            if (placement === "into") return
+            const target = { kind: "video" as const, id: video.id, placement }
+            if (!treeDropCommand(snapshot, dragged, target)) {
+              onDropTarget(null)
+              return
+            }
+            event.preventDefault()
+            onDropTarget(target)
+          }}
+          onDrop={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            const placement = placementFor(event, "video")
+            if (placement === "into") return
+            void onCommit({ kind: "video", id: video.id, placement })
+          }}
+          onClick={() => {
+            if (skipClick.current) return
+            void window.doorei.call("selectVideo", video.id)
+          }}
+        >
+          <span className="truncate">{video.name}</span>
+          <span className="flex items-center gap-1">
+            {video.watched ? <Badge variant="secondary">✓</Badge> : null}
+            {video.fileMissing ? <Badge variant="outline">!</Badge> : null}
+          </span>
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                draggable={false}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+                className={cn(
+                  "shrink-0 opacity-0 transition-opacity group-hover/video:opacity-100 aria-expanded:opacity-100",
+                  selected && "opacity-70"
+                )}
+              />
+            }
+          >
+            <Ellipsis />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-44">
+            <VideoActionItems
+              video={video}
+              lang={lang}
+              failedJobs={failedJobs}
+              Item={DropdownMenuItem}
+              CheckboxItem={DropdownMenuCheckboxItem}
+              Separator={DropdownMenuSeparator}
+            />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="min-w-44">
+        <VideoActionItems
+          video={video}
+          lang={lang}
+          failedJobs={failedJobs}
+          Item={ContextMenuItem}
+          CheckboxItem={ContextMenuCheckboxItem}
+          Separator={ContextMenuSeparator}
+        />
+      </ContextMenuContent>
+    </ContextMenu>
+  )
+}
+
+function VideoActionItems({
+  video,
+  lang,
+  failedJobs,
+  Item,
+  CheckboxItem,
+  Separator
+}: {
+  video: VideoRecord
+  lang: AppLanguage
+  failedJobs: Job[]
+  Item: ComponentType<{
+    variant?: "default" | "destructive"
+    onClick?: () => void
+    children?: ReactNode
+  }>
+  CheckboxItem: ComponentType<{
+    checked?: boolean
+    onCheckedChange?: (checked: boolean) => void
+    children?: ReactNode
+  }>
+  Separator: ComponentType
+}) {
+  return (
+    <>
+      <CheckboxItem
+        checked={video.watched}
+        onCheckedChange={(checked) => {
+          void window.doorei.call("setWatched", video.id, checked === true)
+        }}
+      >
+        {t(lang, "watched")}
+      </CheckboxItem>
+      <Item
+        onClick={() => {
+          void window.doorei.call("selectVideo", video.id).then(() =>
+            window.doorei.call("nextVideoId").then((id) => {
+              if (typeof id === "string") void window.doorei.call("selectVideo", id)
+            })
+          )
+        }}
+      >
+        {t(lang, "next")}
+      </Item>
+      <Item onClick={() => void window.doorei.call("regenerateCaption", video.id)}>
+        {t(lang, "regenerate")}
+      </Item>
+      {failedJobs.map((job) => (
+        <Item key={job.id} onClick={() => void window.doorei.call("retryJob", job.id)}>
+          {t(lang, "retry")}
+          {job.error ? `: ${job.error}` : ""}
+        </Item>
+      ))}
+      <Separator />
+      <Item variant="destructive" onClick={() => void window.doorei.call("deleteVideo", video.id)}>
+        {t(lang, "deleteVideo")}
+      </Item>
+    </>
   )
 }
 

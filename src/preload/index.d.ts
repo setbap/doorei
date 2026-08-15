@@ -13,6 +13,16 @@ declare global {
       pickFile: () => Promise<string | null>
       pickDirectory: () => Promise<string | null>
       openUrl: (url: string) => Promise<void>
+      onShortcut: (
+        listener: (
+          action:
+            | "openSettings"
+            | "toggleActionPanel"
+            | "toggleLibrary"
+            | "toggleToolPane"
+            | "toggleNote"
+        ) => void
+      ) => () => void
     }
   }
 }

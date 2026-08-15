@@ -34,7 +34,9 @@ const DEFAULT_SETTINGS: PlayerSettings = {
   confetti: false,
   playbackSpeed: 1,
   subtitlesVisible: true,
-  autoMarkWatchedAtEnd: true
+  autoMarkWatchedAtEnd: true,
+  captionColor: "#ffffff",
+  captionBackground: "#000000b8"
 }
 
 type State = {
@@ -92,7 +94,12 @@ function initialState(): State {
 function loadState(dataDir: string): State {
   try {
     const raw = readFileSync(join(dataDir, "library.json"), "utf8")
-    return { ...initialState(), ...JSON.parse(raw) }
+    const loaded = JSON.parse(raw) as Partial<State>
+    return {
+      ...initialState(),
+      ...loaded,
+      settings: { ...DEFAULT_SETTINGS, ...loaded.settings }
+    }
   } catch {
     return initialState()
   }
@@ -496,7 +503,7 @@ export function createLibrary(deps: LibraryDeps): Library {
       providerConfigured: state.provider !== null,
       provider: state.provider ? { ...state.provider } : null,
       spokenLanguageDefault: state.spokenLanguageDefault,
-      settings: { ...state.settings },
+      settings: { ...DEFAULT_SETTINGS, ...state.settings },
       prompts: { ...state.prompts },
       requiredModels: Object.values(REQUIRED_MODELS).map((modelId) => ({
         id: modelId,

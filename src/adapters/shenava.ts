@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
+import { isMainThread } from "node:worker_threads"
 import { InferenceSession, Tensor } from "onnxruntime-node"
 import type { CaptionSegment } from "../library/index.js"
 
@@ -13,9 +14,9 @@ export const SHENAVA_OUTPUT_STRIDE = 8
 export const SHENAVA_OVERLAP_SAMPLES = 2 * SHENAVA_SAMPLE_RATE
 export const SHENAVA_HOP_SAMPLES = SHENAVA_WINDOW_SAMPLES - SHENAVA_OVERLAP_SAMPLES
 
-const PAUSE_STEPS = 6
-const MAX_CUE_WORDS = 12
-const MAX_CUE_MS = 6000
+const PAUSE_STEPS = 12
+const MAX_CUE_WORDS = 24
+const MAX_CUE_MS = 12000
 const N_FFT = 512
 const WIN_LENGTH = 400
 const CENTER_PAD = 256
@@ -176,7 +177,9 @@ function shenavaOnnxPath(modelDir: string): string {
 }
 
 async function createShenavaSession(onnxPath: string): Promise<InferenceSession> {
-  if (process.platform === "darwin") {
+  // CoreML inside a Worker thread is a known source of native
+  // `bad_array_new_length` aborts on macOS.
+  if (process.platform === "darwin" && isMainThread) {
     try {
       return await InferenceSession.create(onnxPath, { executionProviders: ["coreml", "cpu"] })
     } catch {
@@ -284,16 +287,24 @@ export async function captionShenavaWindow(
   model: { graph: ShenavaGraph; tokens: string[]; filters: number[][] },
   window: { windowStartSeconds: number; isFirst: boolean; isLast: boolean }
 ): Promise<CaptionSegment[]> {
-  const frameCount = frameCountFor(pcm.length)
-  const ids = await model.graph.infer(logMel(pcm, model.filters), frameCount)
-  const usable = Math.min(ids.length, Math.ceil(frameCount / SHENAVA_OUTPUT_STRIDE))
+  if (pcm.length === 0) return []
+  const windowSeconds = pcm.length / SHENAVA_SAMPLE_RATE
+  const ids = await model.graph.infer(logMel(fullWindowPcm(pcm), model.filters), frameCountFor(pcm.length))
+  const usable = Math.min(ids.length, Math.ceil(frameCountFor(pcm.length) / SHENAVA_OUTPUT_STRIDE))
   const decoded = decodeShenavaCtc(ids.slice(0, usable), model.tokens, window.windowStartSeconds)
   return keepWindowCues(decoded, {
     windowStartSeconds: window.windowStartSeconds,
-    windowSeconds: pcm.length / SHENAVA_SAMPLE_RATE,
+    windowSeconds,
     isFirst: window.isFirst,
     isLast: window.isLast
   })
+}
+
+function fullWindowPcm(pcm: Float32Array): Float32Array {
+  if (pcm.length >= SHENAVA_WINDOW_SAMPLES) return pcm.subarray(0, SHENAVA_WINDOW_SAMPLES)
+  const padded = new Float32Array(SHENAVA_WINDOW_SAMPLES)
+  padded.set(pcm)
+  return padded
 }
 
 export async function runShenavaPcm(
