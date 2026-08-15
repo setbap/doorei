@@ -1,11 +1,20 @@
 import { execFile, spawn } from "node:child_process"
-import { existsSync, readdirSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { dirname, join, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Worker } from "node:worker_threads"
 import { promisify } from "node:util"
 import { REQUIRED_MODELS, type CaptionSegment, type SpeechRecognizer } from "../library/index.js"
 import { modelDir } from "./modelStore.js"
+import {
+  captionParakeetWindow,
+  createOnnxParakeetGraph,
+  loadParakeetVocab,
+  PcmWindowAssembler as ParakeetAssembler,
+  PARAKEET_SAMPLE_RATE,
+  type ParakeetGraph,
+  type PcmWindow as ParakeetWindow
+} from "./parakeet.js"
 import {
   PcmWindowAssembler,
   SHENAVA_SAMPLE_RATE,
@@ -25,6 +34,13 @@ type ShenavaModel = {
   filters: number[][]
 }
 
+type ParakeetModel = {
+  dir: string
+  graph: ParakeetGraph
+  tokens: string[]
+  blankId: number
+}
+
 type WorkerClient = {
   dir: string
   worker: Worker
@@ -33,17 +49,18 @@ type WorkerClient = {
 
 export function createSpeechRecognizer(modelsRoot: string): SpeechRecognizer {
   let workerClient: WorkerClient | null = null
-  let inProcess: ShenavaModel | null = null
+  let shenavaInProcess: ShenavaModel | null = null
+  let parakeetInProcess: ParakeetModel | null = null
   let nextWindowId = 1
 
-  async function inferWindow(window: PcmWindow, modelPath: string): Promise<CaptionSegment[]> {
-    const client = await ensureWorker(modelPath)
+  async function inferShenavaWindow(window: PcmWindow, modelPath: string): Promise<CaptionSegment[]> {
+    const client = await ensureWorker(modelPath, "shenavaWorker.js", "Shenava")
     if (client) {
       const id = nextWindowId
       nextWindowId += 1
-      return inferOnWorker(client, id, window)
+      return inferOnWorker(client, id, window, SHENAVA_SAMPLE_RATE)
     }
-    const model = await ensureInProcess(modelPath)
+    const model = await ensureShenava(modelPath)
     return captionShenavaWindow(window.pcm, model, {
       windowStartSeconds: window.offset / SHENAVA_SAMPLE_RATE,
       isFirst: window.isFirst,
@@ -51,11 +68,30 @@ export function createSpeechRecognizer(modelsRoot: string): SpeechRecognizer {
     })
   }
 
-  async function ensureWorker(modelPath: string): Promise<WorkerClient | null> {
+  async function inferParakeetWindow(window: ParakeetWindow, modelPath: string): Promise<CaptionSegment[]> {
+    const client = await ensureWorker(modelPath, "parakeetWorker.js", "Parakeet")
+    if (client) {
+      const id = nextWindowId
+      nextWindowId += 1
+      return inferOnWorker(client, id, window, PARAKEET_SAMPLE_RATE)
+    }
+    const model = await ensureParakeet(modelPath)
+    return captionParakeetWindow(window.pcm, model, {
+      windowStartSeconds: window.offset / PARAKEET_SAMPLE_RATE,
+      isFirst: window.isFirst,
+      isLast: window.isLast
+    })
+  }
+
+  async function ensureWorker(
+    modelPath: string,
+    fileName: string,
+    label: string
+  ): Promise<WorkerClient | null> {
     if (workerClient?.dir === modelPath) return workerClient
     workerClient?.worker.terminate()
     workerClient = null
-    const workerFile = shenavaWorkerFile()
+    const workerFile = bundledWorkerFile(fileName)
     if (!workerFile) return null
     let worker: Worker | null = null
     try {
@@ -65,7 +101,7 @@ export function createSpeechRecognizer(modelsRoot: string): SpeechRecognizer {
       started.on("message", (msg: { type: string; id?: number; segments?: CaptionSegment[]; message?: string }) => {
         if (msg.type === "error") {
           const pending = msg.id !== undefined ? client.pending.get(msg.id) : undefined
-          pending?.reject(new Error(msg.message ?? "Shenava worker failed"))
+          pending?.reject(new Error(msg.message ?? `${label} worker failed`))
           if (msg.id !== undefined) client.pending.delete(msg.id)
           return
         }
@@ -89,7 +125,7 @@ export function createSpeechRecognizer(modelsRoot: string): SpeechRecognizer {
           }
           if (msg.type === "error") {
             started.off("message", onReady)
-            reject(new Error(msg.message ?? "Shenava worker failed to start"))
+            reject(new Error(msg.message ?? `${label} worker failed to start`))
           }
         }
         started.on("message", onReady)
@@ -105,32 +141,41 @@ export function createSpeechRecognizer(modelsRoot: string): SpeechRecognizer {
     }
   }
 
-  async function ensureInProcess(modelPath: string): Promise<ShenavaModel> {
-    if (inProcess?.dir === modelPath) return inProcess
+  async function ensureShenava(modelPath: string): Promise<ShenavaModel> {
+    if (shenavaInProcess?.dir === modelPath) return shenavaInProcess
     const { tokens, filters } = loadShenavaSidecars(modelPath)
-    inProcess = {
+    shenavaInProcess = {
       dir: modelPath,
       graph: await createOnnxShenavaGraph(modelPath),
       tokens,
       filters
     }
-    return inProcess
+    return shenavaInProcess
+  }
+
+  async function ensureParakeet(modelPath: string): Promise<ParakeetModel> {
+    if (parakeetInProcess?.dir === modelPath) return parakeetInProcess
+    const { tokens, blankId } = loadParakeetVocab(modelPath)
+    parakeetInProcess = {
+      dir: modelPath,
+      graph: await createOnnxParakeetGraph(modelPath, blankId),
+      tokens,
+      blankId
+    }
+    return parakeetInProcess
   }
 
   return {
     async caption({ modelId, videoPath, onSegment, onProgress }) {
       if (modelId === REQUIRED_MODELS.parakeet) {
-        const pcm = await extractPcm16k(videoPath)
-        await runParakeet(modelDir(modelsRoot, modelId), pcm, onSegment)
-        await onProgress?.(1)
+        await runParakeetStreaming(videoPath, onSegment, onProgress, (window) =>
+          inferParakeetWindow(window, modelDir(modelsRoot, modelId))
+        )
         return
       }
       if (modelId === REQUIRED_MODELS.shenava) {
-        await runShenavaStreaming(
-          videoPath,
-          onSegment,
-          onProgress,
-          (window) => inferWindow(window, modelDir(modelsRoot, modelId))
+        await runShenavaStreaming(videoPath, onSegment, onProgress, (window) =>
+          inferShenavaWindow(window, modelDir(modelsRoot, modelId))
         )
         return
       }
@@ -139,7 +184,12 @@ export function createSpeechRecognizer(modelsRoot: string): SpeechRecognizer {
   }
 }
 
-function inferOnWorker(client: WorkerClient, id: number, window: PcmWindow): Promise<CaptionSegment[]> {
+function inferOnWorker(
+  client: WorkerClient,
+  id: number,
+  window: { pcm: Float32Array; offset: number; isFirst: boolean; isLast: boolean },
+  sampleRate: number
+): Promise<CaptionSegment[]> {
   const copy = window.pcm.slice()
   return new Promise((resolve, reject) => {
     client.pending.set(id, { resolve, reject })
@@ -148,7 +198,7 @@ function inferOnWorker(client: WorkerClient, id: number, window: PcmWindow): Pro
         type: "window",
         id,
         pcm: copy,
-        windowStartSeconds: window.offset / SHENAVA_SAMPLE_RATE,
+        windowStartSeconds: window.offset / sampleRate,
         isFirst: window.isFirst,
         isLast: window.isLast
       },
@@ -157,9 +207,9 @@ function inferOnWorker(client: WorkerClient, id: number, window: PcmWindow): Pro
   })
 }
 
-function shenavaWorkerFile(): string | null {
+function bundledWorkerFile(fileName: string): string | null {
   const here = dirname(fileURLToPath(import.meta.url))
-  const bundled = join(here, "shenavaWorker.js")
+  const bundled = join(here, fileName)
   const unpacked = bundled.replace(`${sep}app.asar${sep}`, `${sep}app.asar.unpacked${sep}`)
   if (unpacked !== bundled && existsSync(unpacked)) return unpacked
   return existsSync(bundled) ? bundled : null
@@ -172,25 +222,45 @@ async function runShenavaStreaming(
   infer: (window: PcmWindow) => Promise<CaptionSegment[]>
 ): Promise<void> {
   try {
-    const totalSamples = await probePcmSamples(videoPath)
-    const assembler = new PcmWindowAssembler()
-    const runWindow = async (window: PcmWindow) => {
-      for (const segment of await infer(window)) await onSegment(segment)
-      const done = window.offset + window.pcm.length
-      const fraction = totalSamples ? done / totalSamples : window.isLast ? 1 : 0.5
-      await onProgress?.(Math.min(0.99, fraction))
-    }
-    await streamFfmpegPcm(videoPath, async (chunk) => {
-      for (const window of assembler.push(chunk)) await runWindow(window)
-    })
-    const last = assembler.flush()
-    if (last) await runWindow(last)
-    await onProgress?.(1)
+    await streamWindows(videoPath, new PcmWindowAssembler(), infer, onSegment, onProgress)
   } catch (error) {
-    throw new Error(
-      `Shenava Captioning failed: ${error instanceof Error ? error.message : String(error)}`
-    )
+    throw new Error(`Shenava Captioning failed: ${error instanceof Error ? error.message : String(error)}`)
   }
+}
+
+async function runParakeetStreaming(
+  videoPath: string,
+  onSegment: (segment: CaptionSegment) => void | Promise<void>,
+  onProgress: ((progress: number) => void | Promise<void>) | undefined,
+  infer: (window: ParakeetWindow) => Promise<CaptionSegment[]>
+): Promise<void> {
+  try {
+    await streamWindows(videoPath, new ParakeetAssembler(), infer, onSegment, onProgress)
+  } catch (error) {
+    throw new Error(`Parakeet Captioning failed: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+async function streamWindows(
+  videoPath: string,
+  assembler: { push(chunk: Buffer): Array<{ pcm: Float32Array; offset: number; isFirst: boolean; isLast: boolean }>; flush(): { pcm: Float32Array; offset: number; isFirst: boolean; isLast: boolean } | null },
+  infer: (window: { pcm: Float32Array; offset: number; isFirst: boolean; isLast: boolean }) => Promise<CaptionSegment[]>,
+  onSegment: (segment: CaptionSegment) => void | Promise<void>,
+  onProgress: ((progress: number) => void | Promise<void>) | undefined
+): Promise<void> {
+  const totalSamples = await probePcmSamples(videoPath)
+  const runWindow = async (window: { pcm: Float32Array; offset: number; isFirst: boolean; isLast: boolean }) => {
+    for (const segment of await infer(window)) await onSegment(segment)
+    const done = window.offset + window.pcm.length
+    const fraction = totalSamples ? done / totalSamples : window.isLast ? 1 : 0.5
+    await onProgress?.(Math.min(0.99, fraction))
+  }
+  await streamFfmpegPcm(videoPath, async (chunk) => {
+    for (const window of assembler.push(chunk)) await runWindow(window)
+  })
+  const last = assembler.flush()
+  if (last) await runWindow(last)
+  await onProgress?.(1)
 }
 
 async function streamFfmpegPcm(
@@ -244,16 +314,6 @@ async function probeDurationSeconds(videoPath: string): Promise<number | null> {
   return null
 }
 
-async function extractPcm16k(videoPath: string): Promise<Float32Array> {
-  const ffmpeg = await resolveFfmpeg()
-  const { stdout } = await execFileAsync(
-    ffmpeg,
-    ["-i", videoPath, "-ac", "1", "-ar", "16000", "-f", "f32le", "pipe:1"],
-    { encoding: "buffer", maxBuffer: 1024 * 1024 * 512 }
-  )
-  return new Float32Array(stdout.buffer, stdout.byteOffset, stdout.byteLength / 4)
-}
-
 async function resolveFfmpeg(): Promise<string> {
   try {
     const mod = await import("ffmpeg-static")
@@ -263,64 +323,4 @@ async function resolveFfmpeg(): Promise<string> {
     /* fall through */
   }
   return "ffmpeg"
-}
-
-async function runParakeet(
-  modelPath: string,
-  pcm: Float32Array,
-  onSegment: (segment: CaptionSegment) => void | Promise<void>
-): Promise<void> {
-  try {
-    const parakeet = await import("parakeet.js")
-    const decoder =
-      firstExisting(modelPath, ["decoder_joint-model.int8.onnx", "decoder_joint-model.onnx"]) ??
-      ""
-    const encoder =
-      firstExisting(modelPath, ["encoder-model.int8.onnx", "encoder-model.onnx"]) ?? ""
-    const model = await parakeet.fromUrls({
-      encoderUrl: pathToFileUrl(encoder),
-      decoderUrl: pathToFileUrl(decoder),
-      tokenizerUrl: pathToFileUrl(join(modelPath, "vocab.txt")),
-      backend: "wasm",
-      preprocessorBackend: "js"
-    })
-    const result = (await model.transcribe(pcm, 16000, { returnTimestamps: true })) as {
-      utterance_text?: string
-      text?: string
-      chunks?: { text: string; start: number; end: number }[]
-    }
-    const chunks = result.chunks ?? [
-      {
-        text: result.utterance_text ?? result.text ?? "",
-        start: 0,
-        end: pcm.length / 16000
-      }
-    ]
-    for (const chunk of chunks) {
-      const text = chunk.text?.trim()
-      if (!text) continue
-      await onSegment({
-        startSeconds: chunk.start ?? 0,
-        endSeconds: chunk.end ?? chunk.start ?? 0,
-        text
-      })
-    }
-  } catch (error) {
-    throw new Error(
-      `Parakeet Captioning failed: ${error instanceof Error ? error.message : String(error)}`
-    )
-  }
-}
-
-function firstExisting(dir: string, names: string[]): string | null {
-  for (const name of names) {
-    const files = readdirSync(dir)
-    if (files.includes(name)) return join(dir, name)
-  }
-  return null
-}
-
-function pathToFileUrl(path: string): string {
-  const prefix = process.platform === "win32" ? "file:///" : "file://"
-  return prefix + path.replaceAll("\\", "/")
 }

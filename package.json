@@ -37,6 +37,7 @@
     "asarUnpack": [
       "**/node_modules/onnxruntime-node/**",
       "**/out/main/shenavaWorker.js",
+      "**/out/main/parakeetWorker.js",
       "**/out/main/chunks/**"
     ],
     "extraResources": [

@@ -10,9 +10,10 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve("src/main/index.ts"),
-          shenavaWorker: resolve("src/adapters/shenavaWorker.ts")
+          shenavaWorker: resolve("src/adapters/shenavaWorker.ts"),
+          parakeetWorker: resolve("src/adapters/parakeetWorker.ts")
         },
-        external: ["parakeet.js", "onnxruntime-node"]
+        external: ["onnxruntime-node"]
       }
     }
   },

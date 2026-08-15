@@ -146,6 +146,28 @@ describe("Captioning pipeline", () => {
     expect(job?.error).toMatch(/ASR Model/i)
   })
 
+  test("English Captioning does not start if Parakeet is not on disk", async () => {
+    const calls: string[] = []
+    const media = memoryMedia({ existing: ["/en.mp4"] })
+    const { library, modelStore } = await unlockedLibrary({
+      media,
+      speechRecognizer: {
+        async caption(input) {
+          calls.push(input.modelId)
+        }
+      }
+    })
+    modelStore.markIncomplete(REQUIRED_MODELS.parakeet)
+    await library.createCourse("C")
+    const sessionId = await library.createSession({ name: "S" })
+    await library.addVideos({ sessionId, paths: ["/en.mp4"], spokenLanguage: "en" })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(calls).toEqual([])
+    const job = library.snapshot().jobs.find((item) => item.kind === "captioning")
+    expect(job?.status).toBe("failed")
+    expect(job?.error).toMatch(/ASR Model/i)
+  })
+
   test("Persian Captioning uses Shenava and English never calls Shenava", async () => {
     const calls: string[] = []
     const recognizer: SpeechRecognizer = {
