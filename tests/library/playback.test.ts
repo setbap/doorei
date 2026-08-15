@@ -55,6 +55,16 @@ describe("playback position, watched, and next Video", () => {
     expect(library.nextVideoId()).toBeNull()
   })
 
+  test("before the first Video of a Session, previous is the last Video of the previous Session", async () => {
+    const { library, a, b, c } = await threeVideos()
+    await library.selectVideo(c)
+    expect(library.previousVideoId()).toBe(b)
+    await library.selectVideo(b)
+    expect(library.previousVideoId()).toBe(a)
+    await library.selectVideo(a)
+    expect(library.previousVideoId()).toBeNull()
+  })
+
   test("autoplay and confetti default off and speed is remembered", async () => {
     const { library } = await threeVideos()
     expect(library.snapshot().settings.autoplay).toBe(false)

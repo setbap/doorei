@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react"
 import {
   Captions,
+  Check,
+  ChevronLeft,
+  ChevronRight,
   Maximize,
   Minimize,
   Pause,
@@ -27,8 +30,13 @@ type Props = {
   captionColor: string
   captionBackground: string
   segments: CaptionSegment[]
+  watched: boolean
+  autoPlay: boolean
   onTimeUpdate: (seconds: number) => void
   onEnded: () => void
+  onPrevious: () => Promise<boolean>
+  onNext: () => Promise<boolean>
+  onMarkWatched: () => Promise<void>
   onPlaybackSpeedChange: (speed: number) => void
   onSubtitlesVisibleChange: (visible: boolean) => void
   onCaptionStyleChange: (style: { captionColor?: string; captionBackground?: string }) => void
@@ -44,8 +52,13 @@ export function Player({
   captionColor,
   captionBackground,
   segments,
+  watched,
+  autoPlay,
   onTimeUpdate,
   onEnded,
+  onPrevious,
+  onNext,
+  onMarkWatched,
   onPlaybackSpeedChange,
   onSubtitlesVisibleChange,
   onCaptionStyleChange
@@ -143,6 +156,21 @@ export function Player({
     else await root.requestFullscreen()
   }
 
+  function replay(): void {
+    seekTo(0)
+    void videoRef.current?.play().catch(() => undefined)
+  }
+
+  async function goNeighbor(request: () => Promise<boolean>): Promise<void> {
+    const moved = await request()
+    if (!moved) replay()
+  }
+
+  async function markDone(): Promise<void> {
+    await onMarkWatched()
+    await goNeighbor(onNext)
+  }
+
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.target instanceof HTMLInputElement) return
     if (event.code === "Space" || event.key === "k") {
@@ -166,6 +194,12 @@ export function Player({
     } else if (event.key === "c") {
       event.preventDefault()
       onSubtitlesVisibleChange(!subtitlesVisible)
+    } else if (event.key === "N") {
+      event.preventDefault()
+      void goNeighbor(onNext)
+    } else if (event.key === "P") {
+      event.preventDefault()
+      void goNeighbor(onPrevious)
     }
   }
 
@@ -203,6 +237,7 @@ export function Player({
           el.playbackRate = playbackSpeed
           el.volume = volume
           setCurrentTime(el.currentTime)
+          if (autoPlay) void el.play().catch(() => undefined)
         }}
         onPlay={() => setPlaying(true)}
         onPause={(event) => {
@@ -301,8 +336,17 @@ export function Player({
           onChange={(event) => seekTo(Number(event.target.value))}
         />
         <div className="pointer-events-auto flex items-center gap-1.5 text-white">
+          <IconButton label={t(lang, "previous")} onClick={() => void goNeighbor(onPrevious)}>
+            <ChevronLeft className="rtl:rotate-180" />
+          </IconButton>
           <IconButton label={t(lang, playing ? "pause" : "play")} onClick={() => void togglePlay()}>
             {playing ? <Pause /> : <Play className="ms-px" />}
+          </IconButton>
+          <IconButton label={t(lang, "next")} onClick={() => void goNeighbor(onNext)}>
+            <ChevronRight className="rtl:rotate-180" />
+          </IconButton>
+          <IconButton label={t(lang, "watched")} onClick={() => void markDone()}>
+            <Check className={watched ? "text-emerald-300" : undefined} />
           </IconButton>
           <span className="min-w-20 px-1 font-medium text-white/85 tabular-nums" dir="ltr">
             {formatTime(currentTime)}

@@ -78,6 +78,7 @@ export function Shell({ snapshot }: Props) {
   const [prompt, setPrompt] = useState<PromptState>(null)
   const [sessionDate, setSessionDate] = useState("")
   const [spoken, setSpoken] = useState<SpokenLanguage>(snapshot.spokenLanguageDefault)
+  const [playAfterSelectId, setPlayAfterSelectId] = useState<string | null>(null)
   const lastPosWrite = useRef(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const [playbackTime, setPlaybackTime] = useState(0)
@@ -158,6 +159,14 @@ export function Shell({ snapshot }: Props) {
       }
     })
   }, [])
+
+  async function goToNeighbor(method: "nextVideoId" | "previousVideoId"): Promise<boolean> {
+    const id = await window.doorei.call(method)
+    if (typeof id !== "string") return false
+    setPlayAfterSelectId(id)
+    await window.doorei.call("selectVideo", id)
+    return true
+  }
 
   async function addVideos(
     picker: () => Promise<string[]>,
@@ -324,6 +333,8 @@ export function Shell({ snapshot }: Props) {
                   captionColor={snapshot.settings.captionColor}
                   captionBackground={snapshot.settings.captionBackground}
                   segments={caption?.segments ?? []}
+                  watched={selected.watched}
+                  autoPlay={playAfterSelectId === selected.id}
                   onTimeUpdate={(time) => {
                     setPlaybackTime(time)
                     const now = Date.now()
@@ -334,11 +345,7 @@ export function Shell({ snapshot }: Props) {
                   onEnded={() => {
                     void window.doorei.call("markEnded")
                     if (snapshot.settings.confetti) fireConfetti()
-                    void window.doorei.call("nextVideoId").then((id) => {
-                      if (snapshot.settings.autoplay && typeof id === "string") {
-                        void window.doorei.call("selectVideo", id)
-                      }
-                    })
+                    if (snapshot.settings.autoplay) void goToNeighbor("nextVideoId")
                   }}
                   onPlaybackSpeedChange={(speed) => {
                     void window.doorei.call("updateSettings", { playbackSpeed: speed })
@@ -348,6 +355,11 @@ export function Shell({ snapshot }: Props) {
                   }}
                   onCaptionStyleChange={(style) => {
                     void window.doorei.call("updateSettings", style)
+                  }}
+                  onPrevious={() => goToNeighbor("previousVideoId")}
+                  onNext={() => goToNeighbor("nextVideoId")}
+                  onMarkWatched={async () => {
+                    await window.doorei.call("setWatched", selected.id, true)
                   }}
                 />
               ) : (
