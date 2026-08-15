@@ -10,7 +10,12 @@ export const SHENAVA_HOP_LENGTH = 160
 export const SHENAVA_FIXED_FRAMES = 2005
 export const SHENAVA_WINDOW_SAMPLES = (SHENAVA_FIXED_FRAMES - 1) * SHENAVA_HOP_LENGTH
 export const SHENAVA_OUTPUT_STRIDE = 8
+export const SHENAVA_OVERLAP_SAMPLES = 2 * SHENAVA_SAMPLE_RATE
+export const SHENAVA_HOP_SAMPLES = SHENAVA_WINDOW_SAMPLES - SHENAVA_OVERLAP_SAMPLES
 
+const PAUSE_STEPS = 6
+const MAX_CUE_WORDS = 12
+const MAX_CUE_MS = 6000
 const N_FFT = 512
 const WIN_LENGTH = 400
 const CENTER_PAD = 256
@@ -52,11 +57,42 @@ export function decodeShenavaCtc(
     }
   }
   const startMs = Math.round(windowStartSeconds * 1000)
-  return pieces.map((piece) => ({
-    startSeconds: (startMs + piece.startStep * SHENAVA_MS_PER_STEP) / 1000,
-    endSeconds: (startMs + (piece.endStep + 1) * SHENAVA_MS_PER_STEP) / 1000,
-    text: piece.text
+  return groupCueWords(pieces).map((cue) => ({
+    startSeconds: (startMs + cue.startStep * SHENAVA_MS_PER_STEP) / 1000,
+    endSeconds: (startMs + (cue.endStep + 1) * SHENAVA_MS_PER_STEP) / 1000,
+    text: cue.text
   }))
+}
+
+function groupCueWords(
+  words: { text: string; startStep: number; endStep: number }[]
+): { text: string; startStep: number; endStep: number }[] {
+  if (words.length === 0) return []
+  const cues: { text: string; startStep: number; endStep: number }[] = []
+  let group = [words[0]!]
+  const emit = () => {
+    const first = group[0]
+    const last = group.at(-1)
+    if (!first || !last) return
+    cues.push({
+      text: group.map((word) => word.text).join(" "),
+      startStep: first.startStep,
+      endStep: last.endStep
+    })
+    group = []
+  }
+  for (const word of words.slice(1)) {
+    const prev = group.at(-1)!
+    const first = group[0]!
+    const gap = word.startStep - prev.endStep
+    const durationMs = (word.endStep - first.startStep) * SHENAVA_MS_PER_STEP
+    if (gap >= PAUSE_STEPS || group.length >= MAX_CUE_WORDS || durationMs >= MAX_CUE_MS) {
+      emit()
+    }
+    group.push(word)
+  }
+  emit()
+  return cues
 }
 
 export function argmaxLogits(logits: Float32Array, steps: number, vocab: number): number[] {
@@ -106,7 +142,7 @@ export function loadShenavaSidecars(modelDir: string): { tokens: string[]; filte
 
 export async function createOnnxShenavaGraph(modelDir: string): Promise<ShenavaGraph> {
   const onnxPath = shenavaOnnxPath(modelDir)
-  const session = await InferenceSession.create(onnxPath, { executionProviders: ["cpu"] })
+  const session = await createShenavaSession(onnxPath)
   const signalName = session.inputNames[0] ?? "processed_signal"
   const lengthName = session.inputNames[1] ?? "processed_signal_length"
   const logitsName = session.outputNames[0] ?? "logits"
@@ -114,7 +150,7 @@ export async function createOnnxShenavaGraph(modelDir: string): Promise<ShenavaG
   return {
     async infer(mel, frameCount) {
       const results = await session.run({
-        [signalName]: new Tensor("float16", float32ToFloat16(mel), [1, N_MELS, SHENAVA_FIXED_FRAMES]),
+        [signalName]: nativeFloat16Tensor(mel, [1, N_MELS, SHENAVA_FIXED_FRAMES]),
         [lengthName]: new Tensor("int64", BigInt64Array.from([BigInt(frameCount)]), [1])
       })
       const logitsTensor = results[logitsName]
@@ -139,37 +175,40 @@ function shenavaOnnxPath(modelDir: string): string {
   return join(modelDir, match)
 }
 
-function float32ToFloat16(src: Float32Array): Uint16Array {
-  const out = new Uint16Array(src.length)
-  for (let i = 0; i < src.length; i += 1) out[i] = floatToHalf(src[i] ?? 0)
-  return out
+async function createShenavaSession(onnxPath: string): Promise<InferenceSession> {
+  if (process.platform === "darwin") {
+    try {
+      return await InferenceSession.create(onnxPath, { executionProviders: ["coreml", "cpu"] })
+    } catch {
+      /* CoreML EP missing or rejected this graph */
+    }
+  }
+  return InferenceSession.create(onnxPath, { executionProviders: ["cpu"] })
+}
+
+function nativeFloat16Tensor(values: Float32Array, dims: number[]): Tensor {
+  // onnxruntime-node copies float16 via NAPI typed-array type 4 (Uint16Array).
+  // On Node 24, Tensor stores Float16Array and the native addon copies 0 bytes
+  // ("not enough space: expected N, got 0"). Re-expose the same buffer as Uint16Array.
+  const f16 = new Float16Array(values.length)
+  f16.set(values)
+  const tensor = new Tensor("float16", f16 as unknown as Uint16Array, dims)
+  Object.defineProperty(tensor, "cpuData", {
+    value: new Uint16Array(f16.buffer, f16.byteOffset, f16.length),
+    configurable: true
+  })
+  return tensor
 }
 
 function tensorToFloat32(tensor: Tensor): Float32Array {
-  if (tensor.type === "float32") return new Float32Array(tensor.data as Float32Array)
-  const data = tensor.data as Uint16Array
-  const out = new Float32Array(data.length)
-  for (let i = 0; i < data.length; i += 1) out[i] = halfToFloat(data[i] ?? 0)
-  return out
-}
-
-function floatToHalf(value: number): number {
-  const floatView = new Float32Array(1)
-  const int32View = new Int32Array(floatView.buffer)
-  floatView[0] = value
-  const x = int32View[0] ?? 0
-  const sign = (x >>> 16) & 0x8000
-  const exponent = (x >>> 23) & 0xff
-  const mantissa = x & 0x7fffff
-  if (exponent === 255) return sign | 0x7c00 | (mantissa ? 0x200 : 0)
-  const exp = exponent - 127 + 15
-  if (exp >= 31) return sign | 0x7c00
-  if (exp <= 0) {
-    if (exp < -10) return sign
-    const frac = (mantissa | 0x800000) >> (1 - exp)
-    return sign | ((frac + 0x1000) >> 13)
+  const data = tensor.data
+  if (tensor.type === "float32" || (ArrayBuffer.isView(data) && !(data instanceof Uint16Array))) {
+    return Float32Array.from(data as ArrayLike<number>)
   }
-  return sign | (exp << 10) | ((mantissa + 0x1000) >> 13)
+  const bits = data as Uint16Array
+  const out = new Float32Array(bits.length)
+  for (let i = 0; i < bits.length; i += 1) out[i] = halfToFloat(bits[i] ?? 0)
+  return out
 }
 
 function halfToFloat(half: number): number {
@@ -181,23 +220,103 @@ function halfToFloat(half: number): number {
   return (sign ? -1 : 1) * 2 ** (exponent - 15) * (1 + fraction / 1024)
 }
 
+export type PcmWindow = {
+  pcm: Float32Array
+  offset: number
+  isFirst: boolean
+  isLast: boolean
+}
+
+export class PcmWindowAssembler {
+  private buffer = Buffer.alloc(0)
+  private offset = 0
+  private index = 0
+
+  push(chunk: Buffer): PcmWindow[] {
+    this.buffer = Buffer.concat([this.buffer, chunk])
+    const windows: PcmWindow[] = []
+    const windowBytes = SHENAVA_WINDOW_SAMPLES * 4
+    const hopBytes = SHENAVA_HOP_SAMPLES * 4
+    while (this.buffer.length >= windowBytes) {
+      const copy = Buffer.from(this.buffer.subarray(0, windowBytes))
+      windows.push({
+        pcm: new Float32Array(copy.buffer, copy.byteOffset, SHENAVA_WINDOW_SAMPLES),
+        offset: this.offset,
+        isFirst: this.index === 0,
+        isLast: false
+      })
+      this.buffer = Buffer.from(this.buffer.subarray(hopBytes))
+      this.offset += SHENAVA_HOP_SAMPLES
+      this.index += 1
+    }
+    return windows
+  }
+
+  flush(): PcmWindow | null {
+    const samples = Math.floor(this.buffer.length / 4)
+    if (samples === 0) return null
+    if (this.index > 0 && samples <= SHENAVA_OVERLAP_SAMPLES) return null
+    const copy = Buffer.from(this.buffer.subarray(0, samples * 4))
+    return {
+      pcm: new Float32Array(copy.buffer, copy.byteOffset, samples),
+      offset: this.offset,
+      isFirst: this.index === 0,
+      isLast: true
+    }
+  }
+}
+
+export function keepWindowCues(
+  cues: CaptionSegment[],
+  window: { windowStartSeconds: number; windowSeconds: number; isFirst: boolean; isLast: boolean }
+): CaptionSegment[] {
+  const overlapSeconds = SHENAVA_OVERLAP_SAMPLES / SHENAVA_SAMPLE_RATE
+  const keepAfter = window.isFirst ? 0 : overlapSeconds / 2
+  const keepBefore = window.isLast ? window.windowSeconds : window.windowSeconds - overlapSeconds / 2
+  return cues.filter((cue) => {
+    const mid = (cue.startSeconds + cue.endSeconds) / 2 - window.windowStartSeconds
+    return mid >= keepAfter && mid < keepBefore
+  })
+}
+
+export async function captionShenavaWindow(
+  pcm: Float32Array,
+  model: { graph: ShenavaGraph; tokens: string[]; filters: number[][] },
+  window: { windowStartSeconds: number; isFirst: boolean; isLast: boolean }
+): Promise<CaptionSegment[]> {
+  const frameCount = frameCountFor(pcm.length)
+  const ids = await model.graph.infer(logMel(pcm, model.filters), frameCount)
+  const usable = Math.min(ids.length, Math.ceil(frameCount / SHENAVA_OUTPUT_STRIDE))
+  const decoded = decodeShenavaCtc(ids.slice(0, usable), model.tokens, window.windowStartSeconds)
+  return keepWindowCues(decoded, {
+    windowStartSeconds: window.windowStartSeconds,
+    windowSeconds: pcm.length / SHENAVA_SAMPLE_RATE,
+    isFirst: window.isFirst,
+    isLast: window.isLast
+  })
+}
+
 export async function runShenavaPcm(
   pcm: Float32Array,
   model: { graph: ShenavaGraph; tokens: string[]; filters: number[][] },
-  onSegment: (segment: CaptionSegment) => void | Promise<void>
+  onSegment: (segment: CaptionSegment) => void | Promise<void>,
+  onProgress?: (progress: number) => void | Promise<void>
 ): Promise<void> {
   if (pcm.length === 0) return
-  for (let offset = 0; offset < pcm.length; offset += SHENAVA_WINDOW_SAMPLES) {
-    const slice = pcm.subarray(offset, offset + SHENAVA_WINDOW_SAMPLES)
-    const frameCount = frameCountFor(slice.length)
-    const mel = logMel(slice, model.filters)
-    const ids = await model.graph.infer(mel, frameCount)
-    const usable = Math.min(ids.length, Math.ceil(frameCount / SHENAVA_OUTPUT_STRIDE))
-    const windowStartSeconds = offset / SHENAVA_SAMPLE_RATE
-    for (const segment of decodeShenavaCtc(ids.slice(0, usable), model.tokens, windowStartSeconds)) {
-      await onSegment(segment)
-    }
-    if (slice.length < SHENAVA_WINDOW_SAMPLES) break
+  let index = 0
+  for (let offset = 0; offset < pcm.length; offset += SHENAVA_HOP_SAMPLES) {
+    const end = Math.min(offset + SHENAVA_WINDOW_SAMPLES, pcm.length)
+    const slice = pcm.subarray(offset, end)
+    const isLast = end >= pcm.length
+    const segments = await captionShenavaWindow(slice, model, {
+      windowStartSeconds: offset / SHENAVA_SAMPLE_RATE,
+      isFirst: index === 0,
+      isLast
+    })
+    for (const segment of segments) await onSegment(segment)
+    await onProgress?.(end / pcm.length)
+    index += 1
+    if (isLast) break
   }
 }
 

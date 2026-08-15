@@ -136,6 +136,7 @@ export type SpeechRecognizer = {
     modelId: string
     videoPath: string
     onSegment: (segment: CaptionSegment) => void | Promise<void>
+    onProgress?: (progress: number) => void | Promise<void>
   }): Promise<void>
 }
 

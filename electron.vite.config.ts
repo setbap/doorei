@@ -8,6 +8,10 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
+        input: {
+          index: resolve("src/main/index.ts"),
+          shenavaWorker: resolve("src/adapters/shenavaWorker.ts")
+        },
         external: ["parakeet.js", "onnxruntime-node"]
       }
     }

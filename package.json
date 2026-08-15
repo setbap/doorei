@@ -35,7 +35,9 @@
       "package.json"
     ],
     "asarUnpack": [
-      "**/node_modules/onnxruntime-node/**"
+      "**/node_modules/onnxruntime-node/**",
+      "**/out/main/shenavaWorker.js",
+      "**/out/main/chunks/**"
     ],
     "extraResources": [
       {

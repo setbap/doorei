@@ -316,7 +316,9 @@ export function createLibrary(deps: LibraryDeps): Library {
 
   function kick(): void {
     chain = chain.then(async () => {
-      const job = state.jobs.find((item) => item.status === "queued")
+      const job =
+        state.jobs.find((item) => item.status === "queued" && item.kind === "captioning") ??
+        state.jobs.find((item) => item.status === "queued")
       if (!job) return
       job.status = "running"
       emit()
@@ -339,7 +341,6 @@ export function createLibrary(deps: LibraryDeps): Library {
     if (state.provider) {
       upsertJob("improve", videoId)
     }
-    kick()
   }
 
   async function runCaptioning(job: Job): Promise<void> {
@@ -363,7 +364,9 @@ export function createLibrary(deps: LibraryDeps): Library {
       onSegment: (segment: CaptionSegment) => {
         if (segment.endSeconds <= resumeAfter) return
         caption.segments.push(segment)
-        job.progress = Math.min(0.99, caption.segments.length / 10)
+      },
+      onProgress: (progress) => {
+        job.progress = Math.min(0.99, Math.max(0, progress))
         video.captioningProgress = job.progress
         emit()
       }
@@ -374,6 +377,7 @@ export function createLibrary(deps: LibraryDeps): Library {
     video.captioningProgress = 1
     emit()
     afterCaption(video.id)
+    await new Promise<void>((resolve) => setImmediate(resolve))
   }
 
   async function runEmbed(job: Job): Promise<void> {

@@ -1,19 +1,23 @@
-import { mkdtempSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, test } from "vitest"
 import {
   SHENAVA_BLANK_ID,
+  SHENAVA_HOP_SAMPLES,
   SHENAVA_WINDOW_SAMPLES,
   argmaxLogits,
+  createOnnxShenavaGraph,
   decodeShenavaCtc,
+  keepWindowCues,
   loadShenavaSidecars,
+  PcmWindowAssembler,
   runShenavaPcm,
   type ShenavaGraph
 } from "../../src/adapters/shenava.js"
 
 describe("Shenava CTC decode", () => {
-  test("greedy CTC collapses repeats and blank into timed Caption segments", () => {
+  test("greedy CTC collapses repeats and blank into a Caption cue", () => {
     const tokens = Array.from({ length: 1025 }, () => "")
     tokens[10] = "▁سلام"
     tokens[11] = "▁دنیا"
@@ -22,9 +26,21 @@ describe("Shenava CTC decode", () => {
       tokens,
       0
     )
+    expect(segments).toEqual([{ startSeconds: 0, endSeconds: 0.4, text: "سلام دنیا" }])
+  })
+
+  test("a pause of 480ms starts a new Caption cue", () => {
+    const tokens = Array.from({ length: 1025 }, () => "")
+    tokens[10] = "▁سلام"
+    tokens[11] = "▁دنیا"
+    const segments = decodeShenavaCtc(
+      [10, SHENAVA_BLANK_ID, SHENAVA_BLANK_ID, SHENAVA_BLANK_ID, SHENAVA_BLANK_ID, SHENAVA_BLANK_ID, SHENAVA_BLANK_ID, 11],
+      tokens,
+      0
+    )
     expect(segments).toEqual([
-      { startSeconds: 0, endSeconds: 0.16, text: "سلام" },
-      { startSeconds: 0.24, endSeconds: 0.4, text: "دنیا" }
+      { startSeconds: 0, endSeconds: 0.08, text: "سلام" },
+      { startSeconds: 0.56, endSeconds: 0.64, text: "دنیا" }
     ])
   })
 
@@ -34,15 +50,40 @@ describe("Shenava CTC decode", () => {
     tokens[2] = "<spk1>"
     tokens[10] = "▁سلام"
     const segments = decodeShenavaCtc([0, 10, 2, 10], tokens, 20.04)
-    expect(segments).toEqual([
-      { startSeconds: 20.12, endSeconds: 20.2, text: "سلام" },
-      { startSeconds: 20.28, endSeconds: 20.36, text: "سلام" }
-    ])
+    expect(segments).toEqual([{ startSeconds: 20.12, endSeconds: 20.36, text: "سلام سلام" }])
   })
 })
 
 describe("Shenava windowed Captioning", () => {
-  test("a long Video is captioned in 2005-frame windows and streams segments", async () => {
+  test("cues in the outer half of a 2s overlap are dropped except at the ends", () => {
+    const cues = [
+      { startSeconds: 0.4, endSeconds: 0.6, text: "early" },
+      { startSeconds: 10, endSeconds: 10.5, text: "mid" },
+      { startSeconds: 19.4, endSeconds: 19.6, text: "late" }
+    ]
+    expect(
+      keepWindowCues(cues, { windowStartSeconds: 0, windowSeconds: 20.04, isFirst: false, isLast: false }).map(
+        (cue) => cue.text
+      )
+    ).toEqual(["mid"])
+    expect(
+      keepWindowCues(cues, { windowStartSeconds: 0, windowSeconds: 20.04, isFirst: true, isLast: false }).map(
+        (cue) => cue.text
+      )
+    ).toEqual(["early", "mid"])
+    expect(
+      keepWindowCues(
+        [
+          { startSeconds: 18.44, endSeconds: 18.64, text: "early" },
+          { startSeconds: 28.04, endSeconds: 28.54, text: "mid" },
+          { startSeconds: 37.44, endSeconds: 37.64, text: "late" }
+        ],
+        { windowStartSeconds: 18.04, windowSeconds: 20.04, isFirst: false, isLast: true }
+      ).map((cue) => cue.text)
+    ).toEqual(["mid", "late"])
+  })
+
+  test("a long Video is captioned in overlapping 2005-frame windows and streams segments", async () => {
     const tokens = Array.from({ length: 1025 }, () => "")
     tokens[10] = "▁اول"
     tokens[11] = "▁دوم"
@@ -54,7 +95,7 @@ describe("Shenava windowed Captioning", () => {
         return Array.from({ length: Math.ceil(frameCount / 8) }, () => id)
       }
     }
-    const pcm = new Float32Array(SHENAVA_WINDOW_SAMPLES * 2)
+    const pcm = new Float32Array(SHENAVA_WINDOW_SAMPLES + SHENAVA_HOP_SAMPLES)
     const texts: string[] = []
     const starts: number[] = []
     await runShenavaPcm(pcm, { graph, tokens, filters: dummyFilters() }, (segment) => {
@@ -64,7 +105,29 @@ describe("Shenava windowed Captioning", () => {
     expect(frameCounts).toEqual([2005, 2005])
     expect(texts).toEqual(["اول", "دوم"])
     expect(starts[0]).toBe(0)
-    expect(starts[1]).toBe(SHENAVA_WINDOW_SAMPLES / 16000)
+    expect(starts[1]).toBe(SHENAVA_HOP_SAMPLES / 16000)
+  })
+
+  test("streamed PCM is assembled into overlapping windows without a trailing overlap duplicate", () => {
+    const assembler = new PcmWindowAssembler()
+    const pcm = new Float32Array(SHENAVA_WINDOW_SAMPLES + SHENAVA_HOP_SAMPLES)
+    const windows = assembler.push(Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength))
+    expect(windows).toHaveLength(2)
+    expect(windows[0]?.pcm).toHaveLength(SHENAVA_WINDOW_SAMPLES)
+    expect(windows[0]?.isFirst).toBe(true)
+    expect(windows[1]?.offset).toBe(SHENAVA_HOP_SAMPLES)
+    expect(windows[1]?.isLast).toBe(false)
+    expect(assembler.flush()).toBeNull()
+  })
+
+  test("a short stream flushes as a single last window", () => {
+    const assembler = new PcmWindowAssembler()
+    const pcm = new Float32Array(16000)
+    expect(assembler.push(Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength))).toEqual([])
+    const last = assembler.flush()
+    expect(last?.pcm).toHaveLength(16000)
+    expect(last?.isFirst).toBe(true)
+    expect(last?.isLast).toBe(true)
   })
 })
 
@@ -107,6 +170,23 @@ describe("Shenava sidecars", () => {
     expect(loaded.filters).toHaveLength(80)
     expect(loaded.filters[0]).toHaveLength(257)
   })
+})
+
+describe("Shenava ONNX graph", () => {
+  test("a full-window mel tensor infers token ids without a float16 buffer error", async () => {
+    const modelDir = join(
+      process.cwd(),
+      "resources/models",
+      "Reza2kn--Shenava-Koochik-v1.0-ONNX-fp16"
+    )
+    if (!existsSync(modelDir)) return
+    const graph = await createOnnxShenavaGraph(modelDir)
+    const mel = new Float32Array(80 * 2005)
+    mel.fill(-10)
+    const ids = await graph.infer(mel, 2005)
+    expect(ids.length).toBeGreaterThan(0)
+    expect(ids.every((id) => Number.isInteger(id) && id >= 0 && id < 1025)).toBe(true)
+  }, 30_000)
 })
 
 function dummyFilters(): number[][] {

@@ -178,4 +178,64 @@ describe("Captioning pipeline", () => {
     expect(calls.filter((modelId) => modelId === REQUIRED_MODELS.shenava)).toHaveLength(1)
     expect(library.snapshot().videos.find((video) => video.id === faId)?.spokenLanguage).toBe("fa")
   })
+
+  test("Captioning progress is the fraction of audio processed", async () => {
+    let release: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const recognizer: SpeechRecognizer = {
+      async caption(input) {
+        await input.onSegment(SEGMENTS[0]!)
+        await input.onProgress?.(0.4)
+        await gate
+        await input.onSegment(SEGMENTS[1]!)
+        await input.onProgress?.(1)
+      }
+    }
+    const media = memoryMedia({ existing: ["/v.mp4"] })
+    const { library } = await unlockedLibrary({ media, speechRecognizer: recognizer })
+    await library.createCourse("C")
+    const sessionId = await library.createSession({ name: "S" })
+    await library.addVideos({ sessionId, paths: ["/v.mp4"] })
+    await waitUntil(() => {
+      const job = library.snapshot().jobs.find((item) => item.kind === "captioning")
+      return job?.progress === 0.4
+    })
+    const video = library.snapshot().videos[0]
+    expect(video?.captioningProgress).toBe(0.4)
+    expect(video?.playbackPositionSeconds).toBe(0)
+    release?.()
+    await waitUntil(() =>
+      library.snapshot().jobs.some((job) => job.kind === "captioning" && job.status === "complete")
+    )
+  })
+
+  test("Captioning runs before a queued embed job", async () => {
+    const events: string[] = []
+    const media = memoryMedia({
+      existing: ["/with.mp4", "/need.mp4"],
+      sidecars: { "/with.mp4": "/with.srt" },
+      files: { "/with.srt": SRT }
+    })
+    const { library } = await unlockedLibrary({
+      media,
+      speechRecognizer: {
+        async caption() {
+          events.push("caption")
+        }
+      },
+      embedder: {
+        async embed(texts) {
+          events.push("embed")
+          return texts.map(() => [0, 0, 0])
+        }
+      }
+    })
+    await library.createCourse("C")
+    const sessionId = await library.createSession({ name: "S" })
+    await library.addVideos({ sessionId, paths: ["/with.mp4", "/need.mp4"] })
+    await waitUntil(() => events.includes("caption") && events.includes("embed"))
+    expect(events[0]).toBe("caption")
+  })
 })
