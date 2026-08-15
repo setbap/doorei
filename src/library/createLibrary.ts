@@ -5,6 +5,7 @@ import {
   deleteCourseData,
   loadCourseEmbeddings,
   loadLibrary,
+  saveConversations,
   saveLibrary,
   savePlayback,
   saveVideoEmbeddings,
@@ -14,6 +15,7 @@ import type {
   AppLanguage,
   Caption,
   CaptionSegment,
+  ConversationTurn,
   Hit,
   Job,
   Library,
@@ -47,7 +49,8 @@ const DEFAULT_SETTINGS: PlayerSettings = {
   subtitlesVisible: true,
   autoMarkWatchedAtEnd: true,
   captionColor: "#ffffff",
-  captionBackground: "#000000b8"
+  captionBackground: "#000000b8",
+  askContextBudgetTokens: 24_000
 }
 
 type State = LibraryState
@@ -64,6 +67,27 @@ function id(prefix: string): string {
 
 function basename(path: string): string {
   return path.split(/[/\\]/).pop() ?? path
+}
+
+function titleFromQuestion(question: string): string {
+  const trimmed = question.trim().replace(/\s+/g, " ")
+  return trimmed.length <= 80 ? trimmed : trimmed.slice(0, 80)
+}
+
+function takeHits(hits: Hit[], limit: number): Hit[] {
+  return hits.slice().sort((a, b) => b.score - a.score).slice(0, limit)
+}
+
+const CHARS_PER_TOKEN = 4
+const COMPACT_SYSTEM =
+  "Compact these earlier Ask turns into a short recap. Preserve cited lecture facts. Do not invent new lecture facts. Do not answer a new question. Return only the recap text."
+
+function askTokenCount(prompt: string): number {
+  return Math.ceil(prompt.length / CHARS_PER_TOKEN)
+}
+
+function historyForPack(turns: ConversationTurn[]): { kind: ConversationTurn["kind"]; text: string }[] {
+  return turns.map((turn) => ({ kind: turn.kind, text: turn.text }))
 }
 
 function unwrapFence(text: string): string {
@@ -174,6 +198,15 @@ export function createLibrary(deps: LibraryDeps): Library {
     for (const listener of listeners) listener()
   }
 
+  function persistAsk(courseId = state.selectedCourseId): void {
+    if (courseId) {
+      saveConversations(deps.dataDir, state, courseId)
+      notify()
+      return
+    }
+    emit()
+  }
+
   function courseIdOfVideo(videoId: string): string | null {
     const video = state.videos.find((item) => item.id === videoId)
     if (!video) return null
@@ -240,6 +273,17 @@ export function createLibrary(deps: LibraryDeps): Library {
     const video = state.videos.find((item) => item.id === state.selectedVideoId)
     if (!video) throw new Error("No Video selected")
     return video
+  }
+
+  function activeConversation() {
+    if (!state.selectedCourseId) return null
+    const activeId = state.activeConversationByCourse[state.selectedCourseId]
+    if (!activeId) return null
+    return (
+      state.conversations.find(
+        (item) => item.id === activeId && item.courseId === state.selectedCourseId
+      ) ?? null
+    )
   }
 
   function videosInScope(scope: SearchScope): VideoRecord[] {
@@ -653,7 +697,15 @@ export function createLibrary(deps: LibraryDeps): Library {
       summary: selected ? (state.summaries[selected.id] ?? null) : null,
       jobs: state.jobs.map((job) => ({ ...job })),
       searchHits: state.searchHits.map((hit) => ({ ...hit })),
-      askAnswer: state.askAnswer,
+      conversations: state.conversations
+        .filter((item) => item.courseId === state.selectedCourseId)
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .map((item) => ({ id: item.id, title: item.title })),
+      activeConversationId: activeConversation()?.id ?? null,
+      conversationTurns: (activeConversation()?.turns ?? []).map((turn) => ({
+        ...turn,
+        hits: turn.hits.map((hit) => ({ ...hit }))
+      })),
       askError: state.lastAskError,
       askOff: state.provider === null,
       activity: state.activity,
@@ -738,6 +790,8 @@ export function createLibrary(deps: LibraryDeps): Library {
       }
       state.sessions = state.sessions.filter((session) => session.courseId !== courseId)
       state.courses = state.courses.filter((course) => course.id !== courseId)
+      state.conversations = state.conversations.filter((item) => item.courseId !== courseId)
+      delete state.activeConversationByCourse[courseId]
       if (state.selectedCourseId === courseId) {
         state.selectedCourseId = state.courses[0]?.id ?? null
         state.selectedVideoId = null
@@ -1000,38 +1054,182 @@ export function createLibrary(deps: LibraryDeps): Library {
       if (!deps.providerClient) {
         throw new Error("Provider is not available")
       }
-      const hits = await collectHits({ text: input.question, scope: input.scope })
+      if (!state.selectedCourseId) throw new Error("No Course selected")
+      const courseId = state.selectedCourseId
+      const video = state.videos.find((item) => item.id === state.selectedVideoId) ?? null
+      const session = video
+        ? (state.sessions.find((item) => item.id === video.sessionId) ?? null)
+        : null
+      const allHits = await collectHits({ text: input.question, scope: "course" })
+      const videoHits = takeHits(
+        video
+          ? allHits
+              .filter((hit) => hit.videoId === video.id)
+              .map((hit) => ({ ...hit, origin: "video" as const }))
+          : [],
+        8
+      )
+      const sessionHits = takeHits(
+        video
+          ? allHits
+              .filter((hit) => hit.sessionId === video.sessionId && hit.videoId !== video.id)
+              .map((hit) => ({ ...hit, origin: "session" as const }))
+          : [],
+        6
+      )
+      const courseHits = takeHits(
+        video
+          ? allHits
+              .filter((hit) => hit.sessionId !== video.sessionId)
+              .map((hit) => ({ ...hit, origin: "course" as const }))
+          : allHits.map((hit) => ({ ...hit, origin: "course" as const })),
+        6
+      )
+      const packedHits: Hit[] = [...videoHits, ...sessionHits, ...courseHits]
+      const currentVideoSummary = video ? (state.summaries[video.id] ?? null) : null
+      const currentVideoSummaryMissing = Boolean(video) && currentVideoSummary === null
+      const sessionSummaries =
+        sessionHits.length > 0
+          ? [...new Set(sessionHits.map((hit) => hit.videoId))]
+              .slice(0, 8)
+              .flatMap((videoId) => {
+                const text = state.summaries[videoId]
+                return text ? [{ videoId, text }] : []
+              })
+          : []
+      const existing = activeConversation()
       const outputLanguage = state.outputLanguage ?? state.appLanguage ?? "fa"
+      const budget = state.settings.askContextBudgetTokens ?? 24_000
+      const system = state.prompts.ask
+      const pack = (turns: ConversationTurn[]): string =>
+        JSON.stringify({
+          outputLanguage,
+          currentVideo: video ? { id: video.id, name: video.name } : null,
+          currentSession: session ? { id: session.id, name: session.name } : null,
+          currentVideoSummary,
+          currentVideoSummaryMissing,
+          sessionSummaries,
+          hits: { video: videoHits, session: sessionHits, course: courseHits },
+          history: historyForPack(turns),
+          question: input.question
+        })
       try {
+        let packTurns = existing?.turns.slice() ?? []
+        let compactTurn: ConversationTurn | null = null
+        if (packTurns.length > 0 && askTokenCount(pack(packTurns)) > budget) {
+          const recap = unwrapFence(
+            await deps.providerClient.complete({
+              system: COMPACT_SYSTEM,
+              prompt: JSON.stringify(historyForPack(packTurns))
+            })
+          )
+          if (recap) {
+            compactTurn = {
+              id: id("trn"),
+              kind: "compact",
+              text: recap,
+              hits: packTurns.flatMap((turn) => turn.hits)
+            }
+            packTurns = [compactTurn]
+          }
+        }
+        while (packTurns.length > 0 && askTokenCount(pack(packTurns)) > budget) {
+          packTurns = packTurns.slice(1)
+        }
         const raw = await deps.providerClient.complete({
-          system: state.prompts.ask,
-          prompt: `Output language: ${outputLanguage}\nQuestion: ${input.question}\nHits: ${JSON.stringify(hits)}`
+          system,
+          prompt: pack(packTurns)
         })
         let text = raw
-        let cited = hits
+        let cited: Hit[] = packedHits
         try {
           const parsed = JSON.parse(raw) as { text?: string; hitIndexes?: number[] }
           if (typeof parsed.text === "string") {
             text = parsed.text
             if (Array.isArray(parsed.hitIndexes)) {
               cited = parsed.hitIndexes
-                .map((index) => hits[index])
+                .map((index) => packedHits[index])
                 .filter((hit): hit is Hit => hit !== undefined)
             }
           }
         } catch {
           /* raw prose answer */
         }
-        const answer = { text, hits: cited }
-        state.askAnswer = answer
+        const conversation =
+          existing ??
+          (() => {
+            const created = {
+              id: id("cnv"),
+              courseId,
+              title: titleFromQuestion(input.question),
+              updatedAt: Date.now(),
+              turns: [] as ConversationTurn[]
+            }
+            state.conversations.push(created)
+            state.activeConversationByCourse[courseId] = created.id
+            return created
+          })()
+        if (!conversation.title) conversation.title = titleFromQuestion(input.question)
+        if (compactTurn) conversation.turns = [compactTurn]
+        conversation.turns.push(
+          { id: id("trn"), kind: "user", text: input.question, hits: [] },
+          { id: id("trn"), kind: "assistant", text, hits: cited }
+        )
+        conversation.updatedAt = Date.now()
         state.lastAskError = null
-        emit()
-        return answer
+        persistAsk()
+        return { text, hits: cited }
       } catch (error) {
         state.lastAskError = error instanceof Error ? error.message : String(error)
-        emit()
+        persistAsk()
         throw error
       }
+    },
+    async createConversation() {
+      assertUsable()
+      if (!state.selectedCourseId) throw new Error("No Course selected")
+      const created = {
+        id: id("cnv"),
+        courseId: state.selectedCourseId,
+        title: "",
+        updatedAt: Date.now(),
+        turns: [] as ConversationTurn[]
+      }
+      state.conversations.push(created)
+      state.activeConversationByCourse[state.selectedCourseId] = created.id
+      persistAsk()
+      return created.id
+    },
+    async selectConversation(conversationId) {
+      assertUsable()
+      if (!state.selectedCourseId) throw new Error("No Course selected")
+      const conversation = state.conversations.find(
+        (item) => item.id === conversationId && item.courseId === state.selectedCourseId
+      )
+      if (!conversation) throw new Error("Conversation not found")
+      state.activeConversationByCourse[state.selectedCourseId] = conversation.id
+      persistAsk()
+    },
+    async renameConversation(conversationId, title) {
+      assertUsable()
+      const conversation = state.conversations.find((item) => item.id === conversationId)
+      if (!conversation) throw new Error("Conversation not found")
+      conversation.title = title.trim()
+      conversation.updatedAt = Date.now()
+      persistAsk(conversation.courseId)
+    },
+    async deleteConversation(conversationId) {
+      assertUsable()
+      const conversation = state.conversations.find((item) => item.id === conversationId)
+      if (!conversation) throw new Error("Conversation not found")
+      const courseId = conversation.courseId
+      state.conversations = state.conversations.filter((item) => item.id !== conversationId)
+      if (state.activeConversationByCourse[courseId] === conversationId) {
+        const next = state.conversations.find((item) => item.courseId === courseId)
+        if (next) state.activeConversationByCourse[courseId] = next.id
+        else delete state.activeConversationByCourse[courseId]
+      }
+      persistAsk(courseId)
     },
     async setActivity(activity) {
       assertUsable()

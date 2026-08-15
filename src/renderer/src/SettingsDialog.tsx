@@ -186,6 +186,22 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
                   onChange={(event) => setAsk(event.target.value)}
                 />
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="ask-budget">{t(lang, "askContextBudget")}</Label>
+                <Input
+                  id="ask-budget"
+                  type="number"
+                  min="1"
+                  step="1000"
+                  className="bg-white/5"
+                  value={snapshot.settings.askContextBudgetTokens}
+                  onChange={(event) =>
+                    void window.doorei.call("updateSettings", {
+                      askContextBudgetTokens: Number(event.target.value)
+                    })
+                  }
+                />
+              </div>
             </div>
           </TabsContent>
         </Tabs>

@@ -34,9 +34,12 @@ export type PlayerSettings = {
   autoMarkWatchedAtEnd: boolean
   captionColor: string
   captionBackground: string
+  askContextBudgetTokens: number
 }
 
 export type HitKind = "caption" | "note"
+export type HitOrigin = "video" | "session" | "course"
+export type ConversationTurnKind = "user" | "assistant" | "compact"
 
 export type Hit = {
   videoId: string
@@ -45,9 +48,22 @@ export type Hit = {
   text: string
   kind: HitKind
   score: number
+  origin?: HitOrigin
 }
 
 export type AskAnswer = {
+  text: string
+  hits: Hit[]
+}
+
+export type ConversationRecord = {
+  id: string
+  title: string
+}
+
+export type ConversationTurn = {
+  id: string
+  kind: ConversationTurnKind
   text: string
   hits: Hit[]
 }
@@ -117,7 +133,9 @@ export type LibrarySnapshot = {
   summary: string | null
   jobs: Job[]
   searchHits: Hit[]
-  askAnswer: AskAnswer | null
+  conversations: ConversationRecord[]
+  activeConversationId: string | null
+  conversationTurns: ConversationTurn[]
   askError: string | null
   askOff: boolean
   activity: Activity
@@ -201,7 +219,11 @@ export type Library = {
   editNote(id: string, text: string): Promise<void>
 
   search(input: { text: string; scope: SearchScope }): Promise<Hit[]>
-  ask(input: { question: string; scope: SearchScope }): Promise<AskAnswer>
+  ask(input: { question: string }): Promise<AskAnswer>
+  createConversation(): Promise<string>
+  selectConversation(id: string): Promise<void>
+  renameConversation(id: string, title: string): Promise<void>
+  deleteConversation(id: string): Promise<void>
   setActivity(activity: Activity): Promise<void>
 
   retryJob(jobId: string): Promise<void>

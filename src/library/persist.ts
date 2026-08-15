@@ -4,8 +4,9 @@ import { DatabaseSync } from "node:sqlite"
 import type {
   Activity,
   AppLanguage,
-  AskAnswer,
   Caption,
+  ConversationRecord,
+  ConversationTurn,
   Hit,
   Job,
   Note,
@@ -14,6 +15,12 @@ import type {
   SpokenLanguage,
   VideoRecord
 } from "./types.js"
+
+export type StoredConversation = ConversationRecord & {
+  courseId: string
+  updatedAt: number
+  turns: ConversationTurn[]
+}
 
 export type LibraryState = {
   appLanguage: AppLanguage | null
@@ -36,7 +43,8 @@ export type LibraryState = {
   embeddings: Record<string, { segmentIndex: number; vector: number[]; kind: "caption" | "note"; noteId?: string }[]>
   jobs: Job[]
   searchHits: Hit[]
-  askAnswer: AskAnswer | null
+  conversations: StoredConversation[]
+  activeConversationByCourse: Record<string, string>
   lastAskError: string | null
 }
 
@@ -62,7 +70,8 @@ const DEFAULT_SETTINGS: PlayerSettings = {
   subtitlesVisible: true,
   autoMarkWatchedAtEnd: true,
   captionColor: "#ffffff",
-  captionBackground: "#000000b8"
+  captionBackground: "#000000b8",
+  askContextBudgetTokens: 24_000
 }
 
 export function emptyLibraryState(): LibraryState {
@@ -87,7 +96,8 @@ export function emptyLibraryState(): LibraryState {
     embeddings: {},
     jobs: [],
     searchHits: [],
-    askAnswer: null,
+    conversations: [],
+    activeConversationByCourse: {},
     lastAskError: null
   }
 }
@@ -181,6 +191,19 @@ function ensureCourse(db: DatabaseSync): void {
       progress REAL NOT NULL,
       error TEXT
     );
+    CREATE TABLE IF NOT EXISTS conversations (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS turns (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      text TEXT NOT NULL,
+      hits TEXT NOT NULL
+    );
   `)
 }
 
@@ -265,6 +288,28 @@ export function saveVideoEmbeddings(
   })
 }
 
+function writeConversationRows(db: DatabaseSync, state: LibraryState, courseId: string): void {
+  const insertConversation = db.prepare(
+    "INSERT INTO conversations(id, title, updated_at) VALUES(?, ?, ?)"
+  )
+  const insertTurn = db.prepare(
+    "INSERT INTO turns(id, conversation_id, position, kind, text, hits) VALUES(?, ?, ?, ?, ?, ?)"
+  )
+  for (const conversation of state.conversations.filter((item) => item.courseId === courseId)) {
+    insertConversation.run(conversation.id, conversation.title, conversation.updatedAt)
+    conversation.turns.forEach((turn, position) => {
+      insertTurn.run(
+        turn.id,
+        conversation.id,
+        position,
+        turn.kind,
+        turn.text,
+        JSON.stringify(turn.hits)
+      )
+    })
+  }
+}
+
 function writeCourse(dataDir: string, courseId: string, state: LibraryState): void {
   const sessionIds = new Set(
     state.sessions.filter((session) => session.courseId === courseId).map((session) => session.id)
@@ -274,7 +319,7 @@ function writeCourse(dataDir: string, courseId: string, state: LibraryState): vo
   )
   withDb(coursePath(dataDir, courseId), (db) => {
     ensureCourse(db)
-    db.exec("DELETE FROM sessions; DELETE FROM videos; DELETE FROM notes; DELETE FROM captions; DELETE FROM improved_captions; DELETE FROM summaries; DELETE FROM jobs;")
+    db.exec("DELETE FROM sessions; DELETE FROM videos; DELETE FROM notes; DELETE FROM captions; DELETE FROM improved_captions; DELETE FROM summaries; DELETE FROM jobs; DELETE FROM turns; DELETE FROM conversations;")
     const insertSession = db.prepare("INSERT INTO sessions(id, name, date, position) VALUES(?, ?, ?, ?)")
     for (const session of state.sessions.filter((item) => item.courseId === courseId)) {
       insertSession.run(session.id, session.name, session.date, session.position)
@@ -322,6 +367,7 @@ function writeCourse(dataDir: string, courseId: string, state: LibraryState): vo
     for (const job of state.jobs.filter((item) => videoIds.has(item.videoId))) {
       insertJob.run(job.id, job.kind, job.videoId, job.status, job.progress, job.error)
     }
+    writeConversationRows(db, state, courseId)
   })
 }
 
@@ -354,7 +400,7 @@ function writeApp(dataDir: string, state: LibraryState): void {
     kvSet(db, "activity", JSON.stringify(state.activity))
     kvSet(db, "gatePassed", JSON.stringify(state.gatePassed))
     kvSet(db, "searchHits", JSON.stringify(state.searchHits))
-    kvSet(db, "askAnswer", JSON.stringify(state.askAnswer))
+    kvSet(db, "activeConversationByCourse", JSON.stringify(state.activeConversationByCourse))
     kvSet(db, "lastAskError", JSON.stringify(state.lastAskError))
   })
 }
@@ -380,6 +426,19 @@ export function savePlayback(dataDir: string, state: LibraryState, videoId: stri
       video.watched ? 1 : 0,
       videoId
     )
+  })
+}
+
+export function saveConversations(dataDir: string, state: LibraryState, courseId: string): void {
+  writeApp(dataDir, state)
+  if (!existsSync(coursePath(dataDir, courseId))) {
+    saveLibrary(dataDir, state)
+    return
+  }
+  withDb(coursePath(dataDir, courseId), (db) => {
+    ensureCourse(db)
+    db.exec("DELETE FROM turns; DELETE FROM conversations;")
+    writeConversationRows(db, state, courseId)
   })
 }
 
@@ -491,6 +550,37 @@ function loadCourseFile(dataDir: string, courseId: string, state: LibraryState):
         error: job.error
       })
     }
+    const conversations = db.prepare("SELECT id, title, updated_at FROM conversations").all() as {
+      id: string
+      title: string
+      updated_at: number
+    }[]
+    const turns = db.prepare(
+      "SELECT id, conversation_id, position, kind, text, hits FROM turns ORDER BY position"
+    ).all() as {
+      id: string
+      conversation_id: string
+      position: number
+      kind: ConversationTurn["kind"]
+      text: string
+      hits: string
+    }[]
+    for (const conversation of conversations) {
+      state.conversations.push({
+        id: conversation.id,
+        courseId,
+        title: conversation.title,
+        updatedAt: conversation.updated_at,
+        turns: turns
+          .filter((turn) => turn.conversation_id === conversation.id)
+          .map((turn) => ({
+            id: turn.id,
+            kind: turn.kind,
+            text: turn.text,
+            hits: parseJson(turn.hits, [])
+          }))
+      })
+    }
   })
 }
 
@@ -509,7 +599,7 @@ function loadSqlite(dataDir: string): LibraryState {
     state.activity = parseJson(kvGet(db, "activity"), "summary")
     state.gatePassed = parseJson(kvGet(db, "gatePassed"), false)
     state.searchHits = parseJson(kvGet(db, "searchHits"), [])
-    state.askAnswer = parseJson(kvGet(db, "askAnswer"), null)
+    state.activeConversationByCourse = parseJson(kvGet(db, "activeConversationByCourse"), {})
     state.lastAskError = parseJson(kvGet(db, "lastAskError"), null)
     const courses = db.prepare("SELECT id, name, position FROM courses ORDER BY position").all() as {
       id: string

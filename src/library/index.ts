@@ -15,6 +15,8 @@ export type {
   AskAnswer,
   Caption,
   CaptionSegment,
+  ConversationRecord,
+  ConversationTurn,
   Embedder,
   Hit,
   Job,

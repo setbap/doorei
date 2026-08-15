@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react"
-import { Captions, FileText, MessageSquare, Search, StickyNote } from "lucide-react"
+import { Captions, FileText, MessageSquare, Pencil, Plus, Search, StickyNote, Trash2 } from "lucide-react"
 import type {
   Activity,
   AppLanguage,
   CaptionSegment,
+  HitOrigin,
   LibrarySnapshot,
   SearchScope
 } from "../../library/types.js"
@@ -23,6 +24,7 @@ import {
 import { cn } from "@/lib/utils"
 import { textDirection } from "../../library/textDirection.js"
 import { Markdown } from "./Markdown"
+import { PromptDialog } from "./PromptDialog"
 import { t } from "./uiText"
 
 const ACTIVITIES = [
@@ -61,6 +63,7 @@ export function ToolPane({
   currentTime
 }: Props) {
   const [activity, setActivity] = useState(snapshot.activity)
+  const [renameOpen, setRenameOpen] = useState(false)
   const scopeItems = {
     video: t(lang, "scopeVideo"),
     session: t(lang, "scopeSession"),
@@ -184,22 +187,68 @@ export function ToolPane({
           </Alert>
         ) : (
           <>
-            <Select
-              value={scope}
-              items={scopeItems}
-              onValueChange={(value) => {
-                if (value === "video" || value === "session" || value === "course") setScope(value)
-              }}
-            >
-              <SelectTrigger size="sm" className="mb-2 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="video">{scopeItems.video}</SelectItem>
-                <SelectItem value="session">{scopeItems.session}</SelectItem>
-                <SelectItem value="course">{scopeItems.course}</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="mb-2 flex gap-1">
+              {snapshot.conversations.length > 0 && snapshot.activeConversationId ? (
+                <Select
+                  value={snapshot.activeConversationId}
+                  items={Object.fromEntries(
+                    snapshot.conversations.map((item) => [
+                      item.id,
+                      item.title.trim() || t(lang, "newConversation")
+                    ])
+                  )}
+                  onValueChange={(value) => {
+                    if (value) void window.doorei.call("selectConversation", value)
+                  }}
+                >
+                  <SelectTrigger size="sm" className="min-w-0 flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {snapshot.conversations.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.title.trim() || t(lang, "newConversation")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="min-w-0 flex-1" />
+              )}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title={t(lang, "newConversation")}
+                aria-label={t(lang, "newConversation")}
+                onClick={() => void window.doorei.call("createConversation")}
+              >
+                <Plus />
+              </Button>
+              {snapshot.activeConversationId ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title={t(lang, "renameConversation")}
+                    aria-label={t(lang, "renameConversation")}
+                    onClick={() => setRenameOpen(true)}
+                  >
+                    <Pencil />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title={t(lang, "deleteConversation")}
+                    aria-label={t(lang, "deleteConversation")}
+                    onClick={() =>
+                      void window.doorei.call("deleteConversation", snapshot.activeConversationId)
+                    }
+                  >
+                    <Trash2 />
+                  </Button>
+                </>
+              ) : null}
+            </div>
             <Textarea
               placeholder={t(lang, "askPlaceholder")}
               value={question}
@@ -208,36 +257,75 @@ export function ToolPane({
             />
             <Button
               className="mt-2"
-              onClick={() => void window.doorei.call("ask", { question, scope })}
+              onClick={() => void window.doorei.call("ask", { question })}
             >
               {t(lang, "ask")}
             </Button>
             {snapshot.askError ? (
-              <Alert variant="destructive" className="mt-2">
-                <AlertDescription>{snapshot.askError}</AlertDescription>
-              </Alert>
+              <div className="mt-2 space-y-2">
+                <Alert variant="destructive">
+                  <AlertDescription>{snapshot.askError}</AlertDescription>
+                </Alert>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void window.doorei.call("ask", { question })}
+                >
+                  {t(lang, "retry")}
+                </Button>
+              </div>
             ) : null}
-            {snapshot.askAnswer ? (
-              <ScrollArea className="mt-3 min-h-0 flex-1">
-                <p className="text-sm" dir={textDirection(snapshot.askAnswer.text)}>
-                  {snapshot.askAnswer.text}
-                </p>
-                <ul className="mt-2 space-y-1">
-                  {snapshot.askAnswer.hits.map((hit, index) => (
-                    <li key={index}>
-                      <Button
-                        variant="link"
-                        className="h-auto px-0 whitespace-normal"
-                        dir={textDirection(hit.text)}
-                        onClick={() => void seekHit(hit.videoId, hit.startSeconds)}
-                      >
-                        {hit.text}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              </ScrollArea>
-            ) : null}
+            <ScrollArea className="mt-3 min-h-0 flex-1">
+              <ul className="space-y-3">
+                {snapshot.conversationTurns.map((turn) => (
+                  <li key={turn.id} className="space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      {turn.kind === "compact"
+                        ? t(lang, "compactTurn")
+                        : turn.kind === "user"
+                          ? t(lang, "you")
+                          : t(lang, "answer")}
+                    </p>
+                    <p className="text-sm" dir={textDirection(turn.text)}>
+                      {turn.text}
+                    </p>
+                    {turn.hits.length > 0 ? (
+                      <ul className="space-y-1">
+                        {turn.hits.map((hit, index) => (
+                          <li key={`${turn.id}-${index}`}>
+                            <Button
+                              variant="link"
+                              className="h-auto px-0 whitespace-normal"
+                              dir={textDirection(hit.text)}
+                              onClick={() => void seekHit(hit.videoId, hit.startSeconds)}
+                            >
+                              {hit.origin ? `${originLabel(lang, hit.origin)} · ${hit.text}` : hit.text}
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </ScrollArea>
+            <PromptDialog
+              open={renameOpen}
+              title={t(lang, "renameConversation")}
+              label={t(lang, "conversationTitle")}
+              submitLabel={t(lang, "save")}
+              cancelLabel={t(lang, "cancel")}
+              defaultValue={
+                snapshot.conversations.find((item) => item.id === snapshot.activeConversationId)
+                  ?.title ?? ""
+              }
+              onOpenChange={setRenameOpen}
+              onSubmit={(title) => {
+                if (snapshot.activeConversationId) {
+                  void window.doorei.call("renameConversation", snapshot.activeConversationId, title)
+                }
+              }}
+            />
           </>
         )
       ) : null}
@@ -435,6 +523,12 @@ function CaptionList({
       </ul>
     </ScrollArea>
   )
+}
+
+function originLabel(lang: AppLanguage, origin: HitOrigin): string {
+  if (origin === "video") return t(lang, "hitThisVideo")
+  if (origin === "session") return t(lang, "hitThisSession")
+  return t(lang, "hitRestOfCourse")
 }
 
 function formatCaptionTime(seconds: number): string {
