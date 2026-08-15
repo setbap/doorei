@@ -50,6 +50,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { AppBackdrop } from "./AppBackdrop"
 import { PromptDialog } from "./PromptDialog"
 import { SettingsDialog } from "./SettingsDialog"
 import { ToolPane } from "./ToolPane"
@@ -86,6 +87,7 @@ export function Shell({ snapshot }: Props) {
   const [sessionDate, setSessionDate] = useState("")
   const [spoken, setSpoken] = useState<SpokenLanguage>(snapshot.spokenLanguageDefault)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const nativeGlass = window.doorei.platform === "darwin"
   const selected = snapshot.videos.find((video) => video.id === snapshot.selectedVideoId)
   const languageItems = {
     fa: t(lang, "persian"),
@@ -133,10 +135,12 @@ export function Shell({ snapshot }: Props) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div className="relative flex h-full min-h-0 flex-col">
+      <AppBackdrop nativeGlass={nativeGlass} />
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">
       <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
         <ResizablePanel defaultSize="22%" minSize="14%" maxSize="40%" className="min-h-0">
-          <aside className="flex h-full min-h-0 flex-col border-e bg-sidebar text-sidebar-foreground">
+          <aside className="flex h-full min-h-0 flex-col border-e text-sidebar-foreground">
             <div className="grid gap-2 p-3 pt-8">
               <Select
                 value={snapshot.selectedCourseId}
@@ -373,6 +377,7 @@ export function Shell({ snapshot }: Props) {
           {selected ? ` · ${Math.floor(selected.playbackPositionSeconds)}s` : ""}
         </span>
       </footer>
+      </div>
       <SettingsDialog
         snapshot={snapshot}
         lang={lang}

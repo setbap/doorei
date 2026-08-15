@@ -9,6 +9,7 @@ import { MODEL_HUB_LINKS } from "../../library/models.js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { AppBackdrop } from "./AppBackdrop";
 import { t } from "./uiText";
 
 type Props = { snapshot: LibrarySnapshot };
@@ -48,7 +49,7 @@ export function Welcome({ snapshot }: Props) {
       dir={selected === "fa" ? "rtl" : "ltr"}
       lang={selected}
     >
-      <WelcomeBackdrop nativeGlass={nativeGlass} />
+      <AppBackdrop nativeGlass={nativeGlass} />
       <div className="relative z-10 w-full">
         {step === "intro" ? (
           <Intro lang={selected} onStart={() => setStep("setup")} />
@@ -289,19 +290,6 @@ function LanguageChoice({
       <span className="block text-sm font-medium">{title}</span>
       <span className="mt-0.5 block text-xs text-white/45">{native}</span>
     </button>
-  );
-}
-
-function WelcomeBackdrop({ nativeGlass }: { nativeGlass: boolean }) {
-  if (nativeGlass) {
-    return <div className="pointer-events-none absolute inset-0 bg-black/15" />;
-  }
-
-  return (
-    <div className="welcome-grain pointer-events-none absolute inset-0">
-      <div className="absolute -top-24 start-[-10%] size-[36rem] rounded-lg bg-white/5 blur-3xl" />
-      <div className="absolute -bottom-28 end-[-8%] size-[40rem] rounded-lg bg-black/70 blur-3xl" />
-    </div>
   );
 }
 
