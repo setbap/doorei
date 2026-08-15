@@ -36,6 +36,9 @@
     ],
     "asarUnpack": [
       "**/node_modules/onnxruntime-node/**",
+      "**/node_modules/@cursor/sdk*/**",
+      "**/node_modules/@openai/codex*/**",
+      "**/node_modules/@opencode-ai/**",
       "**/out/main/shenavaWorker.js",
       "**/out/main/parakeetWorker.js",
       "**/out/main/chunks/**"
@@ -73,8 +76,11 @@
   "dependencies": {
     "@ai-sdk/openai": "^4.0.41",
     "@base-ui/react": "^1.7.0",
+    "@cursor/sdk": "^1.0.28",
     "@fontsource-variable/vazirmatn": "^5.3.0",
     "@huggingface/transformers": "^4.2.0",
+    "@openai/codex-sdk": "^0.147.0",
+    "@opencode-ai/sdk": "^1.18.18",
     "ai": "^7.0.65",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

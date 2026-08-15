@@ -1,5 +1,9 @@
 import { useState } from "react"
 import type { AppLanguage, LibrarySnapshot, SpokenLanguage } from "../../library/types.js"
+import {
+  providerConfigFromFields,
+  type ProviderFieldKind
+} from "../../library/providerConfig.js"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -20,6 +24,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { ProviderFields } from "./ProviderFields"
 import { t } from "./uiText"
 
 type Props = {
@@ -30,6 +35,7 @@ type Props = {
 }
 
 export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
+  const [kind, setKind] = useState<ProviderFieldKind>(snapshot.provider?.kind ?? "none")
   const [url, setUrl] = useState(snapshot.provider?.url ?? "")
   const [key, setKey] = useState(snapshot.provider?.key ?? "")
   const [improve, setImprove] = useState(snapshot.prompts.improve)
@@ -126,26 +132,16 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
               onValueChange={(value) => void window.doorei.call("setOutputLanguage", value)}
             />
           </TabsContent>
-          <TabsContent value="provider" className="mt-4 grid gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="settings-url">{t(lang, "providerUrl")}</Label>
-              <Input
-                id="settings-url"
-                placeholder={t(lang, "providerUrl")}
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="settings-key">{t(lang, "providerKey")}</Label>
-              <Input
-                id="settings-key"
-                placeholder={t(lang, "providerKey")}
-                type="password"
-                value={key}
-                onChange={(event) => setKey(event.target.value)}
-              />
-            </div>
+          <TabsContent value="provider" className="mt-4">
+            <ProviderFields
+              lang={lang}
+              kind={kind}
+              url={url}
+              keyValue={key}
+              onKindChange={setKind}
+              onUrlChange={setUrl}
+              onKeyChange={setKey}
+            />
           </TabsContent>
           <TabsContent value="prompts" className="mt-4 grid gap-3">
             <div className="grid gap-2">
@@ -182,7 +178,7 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
             onClick={() => {
               void window.doorei.call(
                 "configureProvider",
-                url.trim() ? { kind: "openai", url: url.trim(), key: key.trim() } : null
+                providerConfigFromFields({ kind, url, key })
               )
               void window.doorei.call("updatePrompt", "improve", improve)
               void window.doorei.call("updatePrompt", "summary", summary)

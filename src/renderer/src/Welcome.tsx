@@ -1,15 +1,20 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, Languages, Package } from "lucide-react";
+import { ArrowLeft, Cable, Languages, Package } from "lucide-react";
 import type {
   AppLanguage,
   LibrarySnapshot,
   SpokenLanguage,
 } from "../../library/types.js";
+import {
+  providerConfigFromFields,
+  type ProviderFieldKind,
+} from "../../library/providerConfig.js";
 import { MODEL_HUB_LINKS } from "../../library/models.js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AppBackdrop } from "./AppBackdrop";
+import { ProviderFields } from "./ProviderFields";
 import { t } from "./uiText";
 
 type Props = { snapshot: LibrarySnapshot };
@@ -31,6 +36,11 @@ export function Welcome({ snapshot }: Props) {
   const [spoken, setSpoken] = useState<SpokenLanguage>(
     snapshot.spokenLanguageDefault
   );
+  const [kind, setKind] = useState<ProviderFieldKind>(
+    snapshot.provider?.kind ?? "none"
+  );
+  const [url, setUrl] = useState(snapshot.provider?.url ?? "");
+  const [key, setKey] = useState(snapshot.provider?.key ?? "");
   const nativeGlass = window.doorei.platform === "darwin";
 
   const allComplete = snapshot.requiredModels.every((model) => model.complete);
@@ -57,14 +67,24 @@ export function Welcome({ snapshot }: Props) {
           <Setup
             lang={selected}
             spoken={spoken}
+            kind={kind}
+            url={url}
+            keyValue={key}
             models={models}
             allComplete={allComplete}
             onBack={() => setStep("intro")}
             onAppLanguage={setSelected}
             onSpokenLanguage={setSpoken}
+            onKindChange={setKind}
+            onUrlChange={setUrl}
+            onKeyChange={setKey}
             onOpen={() => {
               void (async () => {
                 await window.doorei.call("setSpokenLanguageDefault", spoken);
+                await window.doorei.call(
+                  "configureProvider",
+                  providerConfigFromFields({ kind, url, key })
+                );
                 await window.doorei.call("chooseAppLanguage", selected);
               })();
             }}
@@ -102,20 +122,32 @@ function Intro({ lang, onStart }: { lang: AppLanguage; onStart: () => void }) {
 function Setup({
   lang,
   spoken,
+  kind,
+  url,
+  keyValue,
   models,
   allComplete,
   onBack,
   onAppLanguage,
   onSpokenLanguage,
+  onKindChange,
+  onUrlChange,
+  onKeyChange,
   onOpen,
 }: {
   lang: AppLanguage;
   spoken: SpokenLanguage;
+  kind: ProviderFieldKind;
+  url: string;
+  keyValue: string;
   models: { id: string; complete: boolean; label: string }[];
   allComplete: boolean;
   onBack: () => void;
   onAppLanguage: (language: AppLanguage) => void;
   onSpokenLanguage: (language: SpokenLanguage) => void;
+  onKindChange: (kind: ProviderFieldKind) => void;
+  onUrlChange: (url: string) => void;
+  onKeyChange: (key: string) => void;
   onOpen: () => void;
 }) {
   return (
@@ -193,6 +225,24 @@ function Setup({
           />
         </section>
       </div>
+
+      <section className={cn(glassPanel, "p-6")}>
+        <div className="flex items-center gap-2 text-white">
+          <Cable className="size-4 opacity-70" />
+          <h2 className="text-lg font-semibold">{t(lang, "providerOptional")}</h2>
+        </div>
+        <div className="mt-5 text-white">
+          <ProviderFields
+            lang={lang}
+            kind={kind}
+            url={url}
+            keyValue={keyValue}
+            onKindChange={onKindChange}
+            onUrlChange={onUrlChange}
+            onKeyChange={onKeyChange}
+          />
+        </div>
+      </section>
 
       <Button
         size="lg"
