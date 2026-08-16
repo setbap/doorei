@@ -14,6 +14,7 @@ import {
 import type { AppLanguage, CaptionSegment } from "../../library/types.js"
 import { textDirection } from "../../library/textDirection.js"
 import { cn } from "@/lib/utils"
+import { glassMenu } from "@/lib/glass"
 import { t } from "./uiText"
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
@@ -397,7 +398,7 @@ export function Player({
                 {formatSpeed(playbackSpeed)}
               </button>
               {speedOpen ? (
-                <div className="absolute end-0 bottom-10 z-30 min-w-24 rounded-lg bg-neutral-950/95 p-1 ring-1 ring-white/12 backdrop-blur-md">
+                <div className={cn("absolute end-0 bottom-10 z-30 min-w-24 rounded-xl p-1", glassMenu)}>
                   {SPEEDS.map((speed) => (
                     <button
                       key={speed}
@@ -428,7 +429,7 @@ export function Player({
                 <Captions className={subtitlesVisible ? "text-white" : "text-white/45"} />
               </IconButton>
               {styleOpen ? (
-                <div className="absolute end-0 bottom-10 z-30 w-56 rounded-lg bg-neutral-950/95 p-3 text-white ring-1 ring-white/12 backdrop-blur-md">
+                <div className={cn("absolute end-0 bottom-10 z-30 w-56 rounded-xl p-3 text-white", glassMenu)}>
                   <label className="mb-3 flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"

@@ -268,9 +268,9 @@ function SearchPane({
 
   return (
     <>
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <Input
-          className="flex-1"
+          className="h-8 flex-1 text-sm"
           placeholder={t(lang, "searchPlaceholder")}
           value={query}
           dir={query.trim() ? textDirection(query) : "auto"}
@@ -287,7 +287,7 @@ function SearchPane({
               setScope(value);
           }}
         >
-          <SelectTrigger size="sm" className="w-28 shrink-0">
+          <SelectTrigger className="h-8 w-28 shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

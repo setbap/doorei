@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
 import { ProviderFields } from "./ProviderFields"
 import { t } from "./uiText"
 
@@ -34,9 +33,6 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
-
-const glassDialog =
-  "rounded-[20px] border border-neutral-800/10 bg-neutral-950/45 p-0 text-neutral-100 shadow-[0_24px_80px_rgba(0,0,0,0.45)] ring-1 ring-inset ring-neutral-500/15 backdrop-blur-2xl backdrop-saturate-150"
 
 const tabPanelClass = "min-h-72 overflow-y-auto pb-1"
 
@@ -53,10 +49,7 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        overlayClassName="bg-black/40 backdrop-blur-md"
-        className={cn("flex max-h-[85vh] flex-col overflow-hidden sm:max-w-lg", glassDialog)}
-      >
+      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden p-0 sm:max-w-lg">
         <DialogHeader className="px-5 pt-5 pb-3">
           <DialogTitle>{t(lang, "settings")}</DialogTitle>
         </DialogHeader>

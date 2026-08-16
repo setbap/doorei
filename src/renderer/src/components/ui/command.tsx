@@ -46,9 +46,9 @@ function CommandDialog({
     <Dialog {...props}>
       <DialogContent
         showCloseButton={showCloseButton}
-        overlayClassName={overlayClassName ?? "bg-black/45 backdrop-blur-md"}
+        overlayClassName={overlayClassName}
         className={cn(
-          "top-[18%] gap-0 overflow-hidden rounded-[20px] border border-white/10 bg-neutral-950/80 p-0 text-neutral-100 shadow-[0_24px_80px_rgba(0,0,0,0.45)] ring-1 ring-inset ring-white/10 translate-y-0 backdrop-blur-2xl sm:max-w-lg",
+          "top-[18%] gap-0 overflow-hidden p-0 translate-y-0 sm:max-w-lg",
           className
         )}
       >
