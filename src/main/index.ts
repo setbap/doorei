@@ -108,6 +108,7 @@ const LIBRARY_METHODS = new Set([
   "markEnded",
   "nextVideoId",
   "previousVideoId",
+  "selectAdjacent",
   "addNote",
   "editNote",
   "search",

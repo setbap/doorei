@@ -9,8 +9,6 @@ import type {
 } from "../../library/types.js";
 import {
   providerByKindFromVault,
-  providerConfigFromFields,
-  providerVaultFromFields,
   type ProviderFieldKind,
 } from "../../library/providerConfig.js";
 import { MODEL_HUB_LINKS } from "../../library/models.js";
@@ -89,11 +87,7 @@ export function Welcome({ snapshot }: Props) {
             onOpen={() => {
               void (async () => {
                 await window.doorei.call("setSpokenLanguageDefault", spoken);
-                await window.doorei.call(
-                  "configureProvider",
-                  providerConfigFromFields({ kind, byKind }),
-                  providerVaultFromFields(byKind)
-                );
+                await window.doorei.call("configureProvider", kind, byKind);
                 await window.doorei.call("chooseAppLanguage", selected);
               })();
             }}

@@ -1,10 +1,11 @@
 import { describe, expect, test } from "vitest"
-import { createProviderClient, type ProviderKindClients } from "../../src/adapters/provider.js"
 import {
+  createProviderClient,
   cursorModelSelection,
   openaiCompleteOptions,
-  providerConfigFromFields
-} from "../../src/library/providerConfig.js"
+  type ProviderKindClients
+} from "../../src/adapters/provider.js"
+import { providerConfigFromFields } from "../../src/library/providerConfig.js"
 import type { Library, ProviderConfig } from "../../src/library/index.js"
 
 function libraryWith(provider: ProviderConfig | null): Library {

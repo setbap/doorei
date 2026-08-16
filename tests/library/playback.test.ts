@@ -67,6 +67,16 @@ describe("playback position, watched, and next Video", () => {
     expect(library.previousVideoId()).toBeNull()
   })
 
+  test("next and previous can be asked from a Video that is not selected", async () => {
+    const { library, a, b, c } = await threeVideos()
+    await library.selectVideo(a)
+    expect(library.nextVideoId(b)).toBe(c)
+    expect(library.previousVideoId(b)).toBe(a)
+    expect(library.snapshot().selectedVideoId).toBe(a)
+    expect(await library.selectAdjacent(b, "next")).toBe(c)
+    expect(library.snapshot().selectedVideoId).toBe(c)
+  })
+
   test("autoplay and confetti default off and speed is remembered", async () => {
     const { library } = await threeVideos()
     expect(library.snapshot().settings.autoplay).toBe(false)

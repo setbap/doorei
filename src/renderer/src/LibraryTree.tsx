@@ -609,22 +609,14 @@ function VideoActionItems({
       ) : null}
       <Item
         onClick={() => {
-          void window.doorei.call("selectVideo", video.id).then(() =>
-            window.doorei.call("previousVideoId").then((id) => {
-              if (typeof id === "string") void window.doorei.call("selectVideo", id)
-            })
-          )
+          void window.doorei.call("selectAdjacent", video.id, "previous")
         }}
       >
         {t(lang, "previous")}
       </Item>
       <Item
         onClick={() => {
-          void window.doorei.call("selectVideo", video.id).then(() =>
-            window.doorei.call("nextVideoId").then((id) => {
-              if (typeof id === "string") void window.doorei.call("selectVideo", id)
-            })
-          )
+          void window.doorei.call("selectAdjacent", video.id, "next")
         }}
       >
         {t(lang, "next")}

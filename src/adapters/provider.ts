@@ -3,10 +3,6 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createOpenAI } from "@ai-sdk/openai"
 import { generateText } from "ai"
-import {
-  cursorModelSelection,
-  openaiCompleteOptions
-} from "../library/providerConfig.js"
 import type { Library, ProviderClient, ProviderConfig } from "../library/index.js"
 
 export type ProviderCompleteInput = { system: string; prompt: string }
@@ -158,3 +154,98 @@ async function completeCursor(
     return result.result
   })
 }
+
+export function openaiCompleteOptions(config: ProviderConfig): {
+  modelId: string
+  temperature?: number
+  maxOutputTokens?: number
+  topP?: number
+  seed?: number
+  providerOptions?: { openai: Record<string, string | number | boolean | null> }
+} {
+  const extra = parseProviderExtra(config.extra)
+  const {
+    temperature,
+    maxOutputTokens,
+    max_tokens,
+    topP,
+    top_p,
+    seed,
+    ...rest
+  } = extra
+  const openai = jsonRecord(rest)
+  return {
+    modelId: config.model?.trim() || "gpt-4o-mini",
+    ...numberOption("temperature", temperature),
+    ...numberOption("maxOutputTokens", maxOutputTokens ?? max_tokens),
+    ...numberOption("topP", topP ?? top_p),
+    ...numberOption("seed", seed),
+    ...(Object.keys(openai).length > 0 ? { providerOptions: { openai } } : {})
+  }
+}
+
+export function cursorModelSelection(config: ProviderConfig): {
+  id: string
+  params?: { id: string; value: string }[]
+} {
+  const written = config.model?.trim()
+  const extra = parseProviderExtra(config.extra)
+  const params = Object.entries(extra).map(([id, value]) => ({
+    id,
+    value: extraValue(value)
+  }))
+  if (params.length === 0 && !written) {
+    params.push({ id: "fast", value: "true" })
+  }
+  return params.length > 0
+    ? { id: written || "composer-2.5", params }
+    : { id: written || "composer-2.5" }
+}
+
+function parseProviderExtra(extra: string | undefined): Record<string, unknown> {
+  const trimmed = extra?.trim()
+  if (!trimmed) return {}
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch {
+    throw new Error("Provider extra is not valid JSON")
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Provider extra must be a JSON object")
+  }
+  return parsed as Record<string, unknown>
+}
+
+function numberOption<K extends string>(
+  key: K,
+  value: unknown
+): Partial<Record<K, number>> {
+  if (value === undefined || value === null || value === "") return {}
+  const n = Number(value)
+  return Number.isFinite(n) ? ({ [key]: n } as Partial<Record<K, number>>) : {}
+}
+
+function extraValue(value: unknown): string {
+  if (typeof value === "string") return value
+  if (typeof value === "boolean" || typeof value === "number") return String(value)
+  return JSON.stringify(value)
+}
+
+function jsonRecord(
+  value: Record<string, unknown>
+): Record<string, string | number | boolean | null> {
+  const out: Record<string, string | number | boolean | null> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (
+      typeof item === "string" ||
+      typeof item === "number" ||
+      typeof item === "boolean" ||
+      item === null
+    ) {
+      out[key] = item
+    }
+  }
+  return out
+}
+

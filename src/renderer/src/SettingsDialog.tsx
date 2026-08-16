@@ -1,8 +1,6 @@
 import { useState } from "react"
 import {
   providerByKindFromVault,
-  providerConfigFromFields,
-  providerVaultFromFields,
   type ProviderFieldKind
 } from "../../library/providerConfig.js"
 import type { AppLanguage, LibrarySnapshot, SpokenLanguage } from "../../library/types.js"
@@ -215,11 +213,7 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
           </Button>
           <Button
             onClick={() => {
-              void window.doorei.call(
-                "configureProvider",
-                providerConfigFromFields({ kind, byKind }),
-                providerVaultFromFields(byKind)
-              )
+              void window.doorei.call("configureProvider", kind, byKind)
               void window.doorei.call("updatePrompt", "improve", improve)
               void window.doorei.call("updatePrompt", "summary", summary)
               void window.doorei.call("updatePrompt", "ask", ask)

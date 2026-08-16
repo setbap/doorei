@@ -2,15 +2,27 @@ import { formatStamp } from "./hitLinks.js"
 import { jsonrepair } from "jsonrepair"
 import { REQUIRED_MODELS } from "./models.js"
 import { captionFromSidecar } from "./parseCaption.js"
+import { DEFAULT_PROMPTS, DEFAULT_SETTINGS, LEGACY_IMPROVE_PROMPT } from "./defaults.js"
+import {
+  ASK_COMPACT_SYSTEM,
+  askTokenCount,
+  historyForPack,
+  packAskHits,
+  sessionSummarySnippets
+} from "./askPack.js"
+import {
+  providerByKindFromVault,
+  providerConfigFromFields,
+  providerVaultFromFields
+} from "./providerConfig.js"
 import {
   deleteCourseData,
   loadCourseEmbeddings,
   loadLibrary,
-  saveConversations,
-  saveLibrary,
-  savePlayback,
+  persistLibrary,
   saveVideoEmbeddings,
-  type LibraryState
+  type LibraryState,
+  type PersistHint
 } from "./persist.js"
 import type {
   AppLanguage,
@@ -22,38 +34,18 @@ import type {
   Library,
   LibraryDeps,
   LibrarySnapshot,
-  PlayerSettings,
   ProviderConfig,
+  ProviderFieldKind,
+  ProviderKind,
+  ProviderKindFields,
   ProviderVault,
   SearchScope,
   SpokenLanguage,
   VideoRecord
 } from "./types.js"
 
-const DEFAULT_PROMPTS = {
-  improve:
-    "Rewrite this Caption with corrected wording. Keep the same Spoken language. Fix technical terms. Return only a JSON array of strings in the same order, one rewritten text per input. Do not change the number of items. Do not include timestamps.",
-  summary:
-    "Write a Summary of this Video in the requested Output language so the learner can re-read what it covered without watching. Use Markdown (headings, lists, bold). Return only the Markdown, with no wrapping code fence.",
-  ask: "Answer the question using only the provided Hits. Cite those Hits. Write in the requested Output language."
-}
-
-const LEGACY_IMPROVE_PROMPT =
-  "Rewrite this Caption with corrected wording. Keep the same timestamps and the same Spoken language. Fix technical terms. Return only a JSON array of {startSeconds, endSeconds, text}."
-
 const IMPROVE_CHUNK_SEGMENTS = 80
 const IMPROVE_CHUNK_CHARS = 12_000
-
-const DEFAULT_SETTINGS: PlayerSettings = {
-  autoplay: false,
-  confetti: false,
-  playbackSpeed: 1,
-  subtitlesVisible: true,
-  autoMarkWatchedAtEnd: true,
-  captionColor: "#ffffff",
-  captionBackground: "#000000b8",
-  askContextBudgetTokens: 24_000
-}
 
 type State = LibraryState
 
@@ -74,22 +66,6 @@ function basename(path: string): string {
 function titleFromQuestion(question: string): string {
   const trimmed = question.trim().replace(/\s+/g, " ")
   return trimmed.length <= 80 ? trimmed : trimmed.slice(0, 80)
-}
-
-function takeHits(hits: Hit[], limit: number): Hit[] {
-  return hits.slice().sort((a, b) => b.score - a.score).slice(0, limit)
-}
-
-const CHARS_PER_TOKEN = 4
-const COMPACT_SYSTEM =
-  "Compact these earlier Ask turns into a short recap. Preserve cited lecture facts. Do not invent new lecture facts. Do not answer a new question. Return only the recap text."
-
-function askTokenCount(prompt: string): number {
-  return Math.ceil(prompt.length / CHARS_PER_TOKEN)
-}
-
-function historyForPack(turns: ConversationTurn[]): { kind: ConversationTurn["kind"]; text: string }[] {
-  return turns.map((turn) => ({ kind: turn.kind, text: turn.text }))
 }
 
 function unwrapFence(text: string): string {
@@ -179,17 +155,6 @@ function captionLines(segments: CaptionSegment[]): string {
     .join("\n")
 }
 
-function vaultSnapshot(state: {
-  provider: ProviderConfig | null
-  providerVault: ProviderVault
-}): ProviderVault {
-  const vault: ProviderVault = { ...state.providerVault }
-  if (!state.provider) return vault
-  const { kind, ...fields } = state.provider
-  vault[kind] = { ...vault[kind], ...fields }
-  return vault
-}
-
 function cosine(a: number[], b: number[]): number {
   let dot = 0
   let na = 0
@@ -210,22 +175,43 @@ export function createLibrary(deps: LibraryDeps): Library {
   let state = loadState(deps.dataDir)
   const listeners = new Set<() => void>()
 
-  function emit(): void {
-    saveLibrary(deps.dataDir, state)
-    for (const listener of listeners) listener()
-  }
-
   function notify(): void {
     for (const listener of listeners) listener()
   }
 
+  function emit(hint?: PersistHint | "ui"): void {
+    if (hint !== "ui") {
+      persistLibrary(deps.dataDir, state, hint ?? defaultHint())
+    }
+    notify()
+  }
+
+  function defaultHint(): PersistHint {
+    return state.selectedCourseId
+      ? { kind: "course", courseId: state.selectedCourseId }
+      : { kind: "app" }
+  }
+
   function persistAsk(courseId = state.selectedCourseId): void {
     if (courseId) {
-      saveConversations(deps.dataDir, state, courseId)
+      persistLibrary(deps.dataDir, state, { kind: "ask", courseId })
       notify()
       return
     }
     emit()
+  }
+
+  function emitForVideo(videoId: string): void {
+    const courseId = courseIdOfVideo(videoId)
+    emit(courseId ? { kind: "course", courseId } : undefined)
+  }
+
+  function vaultForSnapshot(): ProviderVault {
+    const vault: ProviderVault = { ...state.providerVault }
+    if (!state.provider) return vault
+    const { kind, ...fields } = state.provider
+    vault[kind] = { ...vault[kind], ...fields }
+    return vault
   }
 
   function courseIdOfVideo(videoId: string): string | null {
@@ -449,6 +435,42 @@ export function createLibrary(deps: LibraryDeps): Library {
     return job
   }
 
+  function summaryJobOpen(videoId: string): boolean {
+    return state.jobs.some(
+      (job) =>
+        job.videoId === videoId &&
+        job.kind === "summary" &&
+        (job.status === "queued" || job.status === "running")
+    )
+  }
+
+  function queueSummaryIfMissing(videoId: string): void {
+    if (state.summaries[videoId]) return
+    if (!(state.captions[videoId]?.segments.length ?? 0)) return
+    if (summaryJobOpen(videoId)) return
+    upsertJob("summary", videoId)
+  }
+
+  function requestRecall(videoId: string, mode: "force" | "missing"): void {
+    if (mode === "force") {
+      upsertJob("summary", videoId)
+      upsertJob("improve", videoId)
+      return
+    }
+    queueSummaryIfMissing(videoId)
+  }
+
+  function afterImprove(videoId: string, outcome: "ok" | "failed" | "off"): void {
+    if (outcome === "ok") upsertJob("embed", videoId)
+    if (outcome === "off") {
+      finishMissingSummary(videoId)
+      return
+    }
+    const alreadyCovered = Boolean(state.summaries[videoId]) || summaryJobOpen(videoId)
+    queueSummaryIfMissing(videoId)
+    if (alreadyCovered) finishMissingSummary(videoId)
+  }
+
   let missingSummaryQueue: string[] = []
 
   function videosNeedingSummary(): string[] {
@@ -473,12 +495,7 @@ export function createLibrary(deps: LibraryDeps): Library {
         missingSummaryQueue.shift()
         continue
       }
-      const busy = state.jobs.some(
-        (job) =>
-          job.videoId === videoId &&
-          job.kind === "summary" &&
-          (job.status === "queued" || job.status === "running")
-      )
+      const busy = summaryJobOpen(videoId)
       if (busy) return
       upsertJob("summary", videoId)
       emit()
@@ -503,7 +520,7 @@ export function createLibrary(deps: LibraryDeps): Library {
           state.jobs.find((item) => item.status === "queued")
         if (!job) return
         job.status = "running"
-        emit()
+        emit("ui")
         try {
           if (job.kind === "captioning") await runCaptioning(job)
           else if (job.kind === "embed") await runEmbed(job)
@@ -512,17 +529,9 @@ export function createLibrary(deps: LibraryDeps): Library {
         } catch (error) {
           job.status = "failed"
           job.error = error instanceof Error ? error.message : String(error)
-          emit()
-          if (
-            job.kind === "improve" &&
-            (state.captions[job.videoId]?.segments.length ?? 0) > 0 &&
-            !state.summaries[job.videoId] &&
-            !state.jobs.some((item) => item.kind === "summary" && item.videoId === job.videoId)
-          ) {
-            upsertJob("summary", job.videoId)
-          } else if (job.kind === "improve" || job.kind === "summary") {
-            finishMissingSummary(job.videoId)
-          }
+          emitForVideo(job.videoId)
+          if (job.kind === "improve") afterImprove(job.videoId, "failed")
+          else if (job.kind === "summary") finishMissingSummary(job.videoId)
         }
         if (state.jobs.some((item) => item.status === "queued")) kick()
       })
@@ -557,14 +566,14 @@ export function createLibrary(deps: LibraryDeps): Library {
       onProgress: (progress) => {
         job.progress = Math.min(0.99, Math.max(0, progress))
         video.captioningProgress = job.progress
-        emit()
+        emit({ kind: "captioning", videoId: video.id })
       }
     })
     if (job.status === "failed") return
     job.status = "complete"
     job.progress = 1
     video.captioningProgress = 1
-    emit()
+    emit({ kind: "captioning", videoId: video.id })
     afterCaption(video.id)
     await new Promise<void>((resolve) => setImmediate(resolve))
   }
@@ -589,17 +598,23 @@ export function createLibrary(deps: LibraryDeps): Library {
       }))
     ]
     const courseId = courseIdOfVideo(job.videoId)
-    if (courseId) saveVideoEmbeddings(deps.dataDir, courseId, job.videoId, state.embeddings[job.videoId] ?? [])
+    if (courseId) {
+      persistLibrary(deps.dataDir, state, {
+        kind: "embeddings",
+        courseId,
+        videoId: job.videoId
+      })
+    }
     job.status = "complete"
     job.progress = 1
-    emit()
+    emitForVideo(job.videoId)
   }
 
   async function runImprove(job: Job): Promise<void> {
     if (!state.provider) {
       job.status = "off"
-      emit()
-      finishMissingSummary(job.videoId)
+      emitForVideo(job.videoId)
+      afterImprove(job.videoId, "off")
       return
     }
     if (!deps.providerClient) {
@@ -615,7 +630,7 @@ export function createLibrary(deps: LibraryDeps): Library {
     let lastError: Error | null = null
     for (const [chunkIndex, chunk] of chunks.entries()) {
       job.progress = chunkIndex / chunks.length
-      emit()
+      emit("ui")
       const raw = await deps.providerClient.complete({
         system: state.prompts.improve,
         prompt: `Spoken language: ${video.spokenLanguage}\nRewrite these Caption texts as JSON. Return a JSON array of strings, same order, same count.\n${JSON.stringify(chunk.map((segment) => segment.text))}`
@@ -643,31 +658,23 @@ export function createLibrary(deps: LibraryDeps): Library {
     if (!parsedAny) {
       job.status = "failed"
       job.error = lastError?.message ?? "Provider returned invalid Improved Caption"
-      emit()
-      if (
-        !state.summaries[job.videoId] &&
-        !state.jobs.some((item) => item.kind === "summary" && item.videoId === job.videoId)
-      ) {
-        upsertJob("summary", job.videoId)
-        kick()
-      } else {
-        finishMissingSummary(job.videoId)
-      }
+      emitForVideo(job.videoId)
+      afterImprove(job.videoId, "failed")
+      kick()
       return
     }
     state.improvedCaptions[job.videoId] = { source: caption.source, segments: improved }
     job.status = "complete"
     job.progress = 1
-    emit()
-    if (!state.summaries[job.videoId]) upsertJob("summary", job.videoId)
-    upsertJob("embed", job.videoId)
+    emitForVideo(job.videoId)
+    afterImprove(job.videoId, "ok")
     kick()
   }
 
   async function runSummary(job: Job): Promise<void> {
     if (!state.provider) {
       job.status = "off"
-      emit()
+      emitForVideo(job.videoId)
       finishMissingSummary(job.videoId)
       return
     }
@@ -687,7 +694,7 @@ export function createLibrary(deps: LibraryDeps): Library {
     state.summaries[job.videoId] = text
     job.status = "complete"
     job.progress = 1
-    emit()
+    emitForVideo(job.videoId)
     finishMissingSummary(job.videoId)
   }
 
@@ -708,7 +715,7 @@ export function createLibrary(deps: LibraryDeps): Library {
       direction: direction(),
       providerConfigured: state.provider !== null,
       provider: state.provider ? { ...state.provider } : null,
-      providerVault: vaultSnapshot(state),
+      providerVault: vaultForSnapshot(),
       spokenLanguageDefault: state.spokenLanguageDefault,
       settings: { ...DEFAULT_SETTINGS, ...state.settings },
       prompts: { ...state.prompts },
@@ -756,10 +763,25 @@ export function createLibrary(deps: LibraryDeps): Library {
     if (modelsComplete()) {
       state.gatePassed = true
     }
-    emit()
+    emit({ kind: "app" })
   }
 
-  async function configureProvider(config: ProviderConfig | null, vault?: ProviderVault): Promise<void> {
+  async function configureProvider(
+    configOrKind: ProviderConfig | ProviderFieldKind | null,
+    vaultOrByKind?: ProviderVault | Partial<Record<ProviderKind, ProviderKindFields>>
+  ): Promise<void> {
+    if (typeof configOrKind === "string") {
+      const byKind = {
+        ...providerByKindFromVault(state.providerVault),
+        ...(vaultOrByKind ?? {})
+      }
+      state.providerVault = providerVaultFromFields(byKind)
+      state.provider = providerConfigFromFields({ kind: configOrKind, byKind })
+      emit({ kind: "app" })
+      return
+    }
+    const config = configOrKind
+    const vault = vaultOrByKind as ProviderVault | undefined
     if (vault) {
       state.providerVault = { ...vault }
     } else if (config) {
@@ -767,7 +789,31 @@ export function createLibrary(deps: LibraryDeps): Library {
       state.providerVault = { ...state.providerVault, [kind]: fields }
     }
     state.provider = config
-    emit()
+    emit({ kind: "app" })
+  }
+
+  function neighborVideoId(fromId: string | null, step: 1 | -1): string | null {
+    if (!fromId) return null
+    const current = state.videos.find((item) => item.id === fromId)
+    if (!current) return null
+    const session = state.sessions.find((item) => item.id === current.sessionId)
+    if (!session) return null
+    const inSession = state.videos
+      .filter((video) => video.sessionId === current.sessionId)
+      .sort((a, b) => a.position - b.position)
+    const index = inSession.findIndex((video) => video.id === current.id)
+    const neighbor = inSession[index + step]
+    if (neighbor) return neighbor.id
+    const courseSessions = state.sessions
+      .filter((item) => item.courseId === session.courseId)
+      .sort((a, b) => a.position - b.position)
+    const sessionIndex = courseSessions.findIndex((item) => item.id === session.id)
+    const otherSession = courseSessions[sessionIndex + step]
+    if (!otherSession) return null
+    const otherVideos = state.videos
+      .filter((video) => video.sessionId === otherSession.id)
+      .sort((a, b) => a.position - b.position)
+    return (step === 1 ? otherVideos[0] : otherVideos[otherVideos.length - 1])?.id ?? null
   }
 
   return {
@@ -780,22 +826,22 @@ export function createLibrary(deps: LibraryDeps): Library {
     async setOutputLanguage(language) {
       assertUsable()
       state.outputLanguage = language
-      emit()
+      emit({ kind: "app" })
     },
     configureProvider,
     async setSpokenLanguageDefault(language) {
       state.spokenLanguageDefault = language
-      emit()
+      emit({ kind: "app" })
     },
     async updateSettings(patch) {
       assertUsable()
       state.settings = { ...state.settings, ...patch }
-      emit()
+      emit({ kind: "app" })
     },
     async updatePrompt(job, prompt) {
       assertUsable()
       state.prompts[job] = prompt
-      emit()
+      emit({ kind: "app" })
     },
     async createCourse(name) {
       assertUsable()
@@ -810,7 +856,7 @@ export function createLibrary(deps: LibraryDeps): Library {
       const course = state.courses.find((item) => item.id === courseId)
       if (!course) throw new Error("Course not found")
       course.name = name
-      emit()
+      emit({ kind: "app" })
     },
     async deleteCourse(courseId) {
       assertUsable()
@@ -838,7 +884,7 @@ export function createLibrary(deps: LibraryDeps): Library {
         state.selectedVideoId = null
       }
       deleteCourseData(deps.dataDir, courseId)
-      emit()
+      emit({ kind: "app" })
     },
     async selectCourse(courseId) {
       assertUsable()
@@ -848,7 +894,7 @@ export function createLibrary(deps: LibraryDeps): Library {
       state.selectedCourseId = courseId
       state.selectedVideoId = null
       loadEmbeddingsForCourse(courseId)
-      emit()
+      emit({ kind: "app" })
     },
     async createSession(input) {
       assertUsable()
@@ -959,6 +1005,8 @@ export function createLibrary(deps: LibraryDeps): Library {
         saveVideoEmbeddings(deps.dataDir, toCourseId, videoId, rows)
         saveVideoEmbeddings(deps.dataDir, fromCourseId, videoId, [])
         state.embeddings[videoId] = rows
+        emit({ kind: "library" })
+        return
       }
       emit()
     },
@@ -987,7 +1035,7 @@ export function createLibrary(deps: LibraryDeps): Library {
           video.fileMissing = !deps.media.exists(video.path)
         }
       }
-      emit()
+      emit({ kind: "library" })
     },
     async selectVideo(videoId) {
       assertUsable()
@@ -999,21 +1047,20 @@ export function createLibrary(deps: LibraryDeps): Library {
         state.selectedCourseId = session.courseId
         loadEmbeddingsForCourse(session.courseId)
       }
-      emit()
+      emit({ kind: "app" })
     },
     async setPlaybackPosition(seconds) {
       assertUsable()
       const video = selectedVideo()
       video.playbackPositionSeconds = seconds
-      savePlayback(deps.dataDir, state, video.id)
-      notify()
+      emit({ kind: "playback", videoId: video.id })
     },
     async setWatched(videoId, watched) {
       assertUsable()
       const video = state.videos.find((item) => item.id === videoId)
       if (!video) throw new Error("Video not found")
       video.watched = watched
-      emit()
+      emit({ kind: "playback", videoId })
     },
     async markEnded() {
       assertUsable()
@@ -1021,57 +1068,22 @@ export function createLibrary(deps: LibraryDeps): Library {
       if (state.settings.autoMarkWatchedAtEnd) {
         video.watched = true
       }
-      emit()
+      emit({ kind: "playback", videoId: video.id })
     },
-    nextVideoId() {
+    nextVideoId(fromId) {
       assertUsable()
-      if (!state.selectedVideoId) return null
-      const current = state.videos.find((item) => item.id === state.selectedVideoId)
-      if (!current) return null
-      const session = state.sessions.find((item) => item.id === current.sessionId)
-      if (!session) return null
-      const inSession = state.videos
-        .filter((video) => video.sessionId === current.sessionId)
-        .sort((a, b) => a.position - b.position)
-      const index = inSession.findIndex((video) => video.id === current.id)
-      if (index >= 0 && index < inSession.length - 1) {
-        return inSession[index + 1]?.id ?? null
-      }
-      const courseSessions = state.sessions
-        .filter((item) => item.courseId === session.courseId)
-        .sort((a, b) => a.position - b.position)
-      const sessionIndex = courseSessions.findIndex((item) => item.id === session.id)
-      const nextSession = courseSessions[sessionIndex + 1]
-      if (!nextSession) return null
-      const nextVideos = state.videos
-        .filter((video) => video.sessionId === nextSession.id)
-        .sort((a, b) => a.position - b.position)
-      return nextVideos[0]?.id ?? null
+      return neighborVideoId(fromId ?? state.selectedVideoId, 1)
     },
-    previousVideoId() {
+    previousVideoId(fromId) {
       assertUsable()
-      if (!state.selectedVideoId) return null
-      const current = state.videos.find((item) => item.id === state.selectedVideoId)
-      if (!current) return null
-      const session = state.sessions.find((item) => item.id === current.sessionId)
-      if (!session) return null
-      const inSession = state.videos
-        .filter((video) => video.sessionId === current.sessionId)
-        .sort((a, b) => a.position - b.position)
-      const index = inSession.findIndex((video) => video.id === current.id)
-      if (index > 0) {
-        return inSession[index - 1]?.id ?? null
-      }
-      const courseSessions = state.sessions
-        .filter((item) => item.courseId === session.courseId)
-        .sort((a, b) => a.position - b.position)
-      const sessionIndex = courseSessions.findIndex((item) => item.id === session.id)
-      const previousSession = courseSessions[sessionIndex - 1]
-      if (!previousSession) return null
-      const previousVideos = state.videos
-        .filter((video) => video.sessionId === previousSession.id)
-        .sort((a, b) => a.position - b.position)
-      return previousVideos[previousVideos.length - 1]?.id ?? null
+      return neighborVideoId(fromId ?? state.selectedVideoId, -1)
+    },
+    async selectAdjacent(fromId, direction) {
+      assertUsable()
+      const id = neighborVideoId(fromId, direction === "next" ? 1 : -1)
+      if (!id) return null
+      await this.selectVideo(id)
+      return id
     },
     async addNote(input) {
       assertUsable()
@@ -1097,7 +1109,7 @@ export function createLibrary(deps: LibraryDeps): Library {
       assertUsable()
       const hits = await collectHits(input)
       state.searchHits = hits
-      emit()
+      emit({ kind: "app" })
       return hits
     },
     async ask(input) {
@@ -1115,42 +1127,14 @@ export function createLibrary(deps: LibraryDeps): Library {
         ? (state.sessions.find((item) => item.id === video.sessionId) ?? null)
         : null
       const allHits = await collectHits({ text: input.question, scope: "course" })
-      const videoHits = takeHits(
-        video
-          ? allHits
-              .filter((hit) => hit.videoId === video.id)
-              .map((hit) => ({ ...hit, origin: "video" as const }))
-          : [],
-        8
+      const { videoHits, sessionHits, courseHits, packedHits } = packAskHits(
+        allHits,
+        video?.id ?? null,
+        video?.sessionId ?? null
       )
-      const sessionHits = takeHits(
-        video
-          ? allHits
-              .filter((hit) => hit.sessionId === video.sessionId && hit.videoId !== video.id)
-              .map((hit) => ({ ...hit, origin: "session" as const }))
-          : [],
-        6
-      )
-      const courseHits = takeHits(
-        video
-          ? allHits
-              .filter((hit) => hit.sessionId !== video.sessionId)
-              .map((hit) => ({ ...hit, origin: "course" as const }))
-          : allHits.map((hit) => ({ ...hit, origin: "course" as const })),
-        6
-      )
-      const packedHits: Hit[] = [...videoHits, ...sessionHits, ...courseHits]
       const currentVideoSummary = video ? (state.summaries[video.id] ?? null) : null
       const currentVideoSummaryMissing = Boolean(video) && currentVideoSummary === null
-      const sessionSummaries =
-        sessionHits.length > 0
-          ? [...new Set(sessionHits.map((hit) => hit.videoId))]
-              .slice(0, 8)
-              .flatMap((videoId) => {
-                const text = state.summaries[videoId]
-                return text ? [{ videoId, text }] : []
-              })
-          : []
+      const sessionSummaries = sessionSummarySnippets(sessionHits, state.summaries)
       const existing = activeConversation()
       const outputLanguage = state.outputLanguage ?? state.appLanguage ?? "fa"
       const budget = state.settings.askContextBudgetTokens ?? 24_000
@@ -1173,7 +1157,7 @@ export function createLibrary(deps: LibraryDeps): Library {
         if (packTurns.length > 0 && askTokenCount(pack(packTurns)) > budget) {
           const recap = unwrapFence(
             await deps.providerClient.complete({
-              system: COMPACT_SYSTEM,
+              system: ASK_COMPACT_SYSTEM,
               prompt: JSON.stringify(historyForPack(packTurns))
             })
           )
@@ -1288,7 +1272,7 @@ export function createLibrary(deps: LibraryDeps): Library {
     async setActivity(activity) {
       assertUsable()
       state.activity = activity
-      emit()
+      emit({ kind: "app" })
     },
     async retryJob(jobId) {
       assertUsable()
@@ -1302,7 +1286,7 @@ export function createLibrary(deps: LibraryDeps): Library {
     async dismissFailedJobs() {
       assertUsable()
       state.jobs = state.jobs.filter((job) => job.status !== "failed")
-      emit()
+      emit({ kind: "library" })
     },
     async regenerateCaption(videoId) {
       assertUsable()
@@ -1327,9 +1311,8 @@ export function createLibrary(deps: LibraryDeps): Library {
       if (!state.provider) throw new Error("Provider is not configured")
       const caption = state.captions[videoId]
       if (!caption?.segments.length) throw new Error("No Caption to summarize")
-      upsertJob("summary", videoId)
-      upsertJob("improve", videoId)
-      emit()
+      requestRecall(videoId, "force")
+      emitForVideo(videoId)
       kick()
     },
     async generateMissingSummaries() {

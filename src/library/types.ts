@@ -8,6 +8,7 @@ export type CaptionSource = "imported" | "asr"
 export type JobKind = "captioning" | "improve" | "summary" | "embed"
 export type JobStatus = "queued" | "running" | "complete" | "failed" | "off"
 export type ProviderKind = "openai" | "codex" | "opencode" | "cursor"
+export type ProviderFieldKind = ProviderKind | "none"
 
 export type CaptionSegment = {
   startSeconds: number
@@ -192,7 +193,10 @@ export type Library = {
 
   chooseAppLanguage(language: AppLanguage): Promise<void>
   setOutputLanguage(language: AppLanguage): Promise<void>
-  configureProvider(config: ProviderConfig | null, vault?: ProviderVault): Promise<void>
+  configureProvider(
+    config: ProviderConfig | ProviderFieldKind | null,
+    vault?: ProviderVault | Partial<Record<ProviderKind, ProviderKindFields>>
+  ): Promise<void>
   setSpokenLanguageDefault(language: SpokenLanguage): Promise<void>
   updateSettings(patch: Partial<PlayerSettings>): Promise<void>
   updatePrompt(job: "improve" | "summary" | "ask", prompt: string): Promise<void>
@@ -222,8 +226,9 @@ export type Library = {
   setPlaybackPosition(seconds: number): Promise<void>
   setWatched(videoId: string, watched: boolean): Promise<void>
   markEnded(): Promise<void>
-  nextVideoId(): string | null
-  previousVideoId(): string | null
+  nextVideoId(fromId?: string | null): string | null
+  previousVideoId(fromId?: string | null): string | null
+  selectAdjacent(fromId: string, direction: "next" | "previous"): Promise<string | null>
 
   addNote(input: { text: string; timestampSeconds?: number | null }): Promise<string>
   editNote(id: string, text: string): Promise<void>

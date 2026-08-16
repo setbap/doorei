@@ -216,7 +216,7 @@ describe("Captioning pipeline", () => {
       }
     }
     const media = memoryMedia({ existing: ["/v.mp4"] })
-    const { library } = await unlockedLibrary({ media, speechRecognizer: recognizer })
+    const { library, dataDir, modelStore } = await unlockedLibrary({ media, speechRecognizer: recognizer })
     await library.createCourse("C")
     const sessionId = await library.createSession({ name: "S" })
     await library.addVideos({ sessionId, paths: ["/v.mp4"] })
@@ -227,6 +227,17 @@ describe("Captioning pipeline", () => {
     const video = library.snapshot().videos[0]
     expect(video?.captioningProgress).toBe(0.4)
     expect(video?.playbackPositionSeconds).toBe(0)
+    const { createLibrary } = await import("../../src/library/index.js")
+    const reopened = createLibrary({
+      dataDir,
+      modelStore,
+      media,
+      speechRecognizer: streamingRecognizer([]),
+      embedder: silentEmbedder()
+    })
+    expect(reopened.snapshot().videos[0]?.captioningProgress).toBe(0.4)
+    await reopened.selectVideo(reopened.snapshot().videos[0]!.id)
+    expect(reopened.snapshot().caption?.segments).toHaveLength(1)
     release?.()
     await waitUntil(() =>
       library.snapshot().jobs.some((job) => job.kind === "captioning" && job.status === "complete")

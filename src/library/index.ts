@@ -8,12 +8,10 @@ export {
 } from "./models.js"
 export { createLibrary } from "./createLibrary.js"
 export {
-  cursorModelSelection,
-  openaiCompleteOptions,
+  providerByKindFromVault,
   providerConfigFromFields,
   providerVaultFromFields
 } from "./providerConfig.js"
-export type { ProviderFieldKind } from "./providerConfig.js"
 export type {
   Activity,
   AppLanguage,
@@ -34,6 +32,7 @@ export type {
   PlayerSettings,
   ProviderClient,
   ProviderConfig,
+  ProviderFieldKind,
   ProviderKind,
   ProviderKindFields,
   ProviderVault,

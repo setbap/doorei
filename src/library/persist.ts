@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
+import { DEFAULT_PROMPTS, DEFAULT_SETTINGS } from "./defaults.js"
 import type {
   Activity,
   AppLanguage,
@@ -57,24 +58,14 @@ type EmbeddingRow = {
   noteId?: string
 }
 
-const DEFAULT_PROMPTS = {
-  improve:
-    "Rewrite this Caption with corrected wording. Keep the same Spoken language. Fix technical terms. Return only a JSON array of strings in the same order, one rewritten text per input. Do not change the number of items. Do not include timestamps.",
-  summary:
-    "Write a Summary of this Video in the requested Output language so the learner can re-read what it covered without watching. Use Markdown (headings, lists, bold). Return only the Markdown, with no wrapping code fence.",
-  ask: "Answer the question using only the provided Hits. Cite those Hits. Write in the requested Output language."
-}
-
-const DEFAULT_SETTINGS: PlayerSettings = {
-  autoplay: false,
-  confetti: false,
-  playbackSpeed: 1,
-  subtitlesVisible: true,
-  autoMarkWatchedAtEnd: true,
-  captionColor: "#ffffff",
-  captionBackground: "#000000b8",
-  askContextBudgetTokens: 24_000
-}
+export type PersistHint =
+  | { kind: "library" }
+  | { kind: "app" }
+  | { kind: "course"; courseId: string }
+  | { kind: "playback"; videoId: string }
+  | { kind: "ask"; courseId: string }
+  | { kind: "captioning"; videoId: string }
+  | { kind: "embeddings"; courseId: string; videoId: string }
 
 export function emptyLibraryState(): LibraryState {
   return {
@@ -409,10 +400,73 @@ function writeApp(dataDir: string, state: LibraryState): void {
   })
 }
 
+export function persistLibrary(dataDir: string, state: LibraryState, hint: PersistHint): void {
+  mkdirSync(dataDir, { recursive: true })
+  if (hint.kind === "library") {
+    saveLibrary(dataDir, state)
+    return
+  }
+  if (hint.kind === "app") {
+    writeApp(dataDir, state)
+    return
+  }
+  if (hint.kind === "course") {
+    writeApp(dataDir, state)
+    writeCourse(dataDir, hint.courseId, state)
+    return
+  }
+  if (hint.kind === "playback") {
+    savePlayback(dataDir, state, hint.videoId)
+    return
+  }
+  if (hint.kind === "ask") {
+    saveConversations(dataDir, state, hint.courseId)
+    return
+  }
+  if (hint.kind === "captioning") {
+    saveCaptioning(dataDir, state, hint.videoId)
+    return
+  }
+  saveVideoEmbeddings(dataDir, hint.courseId, hint.videoId, state.embeddings[hint.videoId] ?? [])
+}
+
 export function saveLibrary(dataDir: string, state: LibraryState): void {
   mkdirSync(dataDir, { recursive: true })
   writeApp(dataDir, state)
   for (const course of state.courses) writeCourse(dataDir, course.id, state)
+}
+
+function saveCaptioning(dataDir: string, state: LibraryState, videoId: string): void {
+  const courseId = courseIdForVideo(state, videoId)
+  const video = state.videos.find((item) => item.id === videoId)
+  const path = courseId ? coursePath(dataDir, courseId) : null
+  if (!courseId || !video || !path || !existsSync(path)) {
+    saveLibrary(dataDir, state)
+    return
+  }
+  withDb(path, (db) => {
+    ensureCourse(db)
+    db.prepare("UPDATE videos SET captioning_progress = ? WHERE id = ?").run(
+      video.captioningProgress,
+      videoId
+    )
+    db.prepare("DELETE FROM captions WHERE video_id = ?").run(videoId)
+    const caption = state.captions[videoId]
+    if (caption) {
+      db.prepare("INSERT INTO captions(video_id, source, segments) VALUES(?, ?, ?)").run(
+        videoId,
+        caption.source,
+        JSON.stringify(caption.segments)
+      )
+    }
+    db.prepare("DELETE FROM jobs WHERE video_id = ?").run(videoId)
+    const insertJob = db.prepare(
+      "INSERT INTO jobs(id, kind, video_id, status, progress, error) VALUES(?, ?, ?, ?, ?, ?)"
+    )
+    for (const job of state.jobs.filter((item) => item.videoId === videoId)) {
+      insertJob.run(job.id, job.kind, job.videoId, job.status, job.progress, job.error)
+    }
+  })
 }
 
 export function savePlayback(dataDir: string, state: LibraryState, videoId: string): void {
