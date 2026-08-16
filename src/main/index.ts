@@ -118,6 +118,7 @@ const LIBRARY_METHODS = new Set([
   "deleteConversation",
   "setActivity",
   "retryJob",
+  "dismissFailedJobs",
   "regenerateCaption",
   "generateSummary",
   "generateMissingSummaries"

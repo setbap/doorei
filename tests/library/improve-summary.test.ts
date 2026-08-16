@@ -31,8 +31,9 @@ describe("Improved Caption and Summary", () => {
     const sessionId = await library.createSession({ name: "S" })
     const [videoId] = await library.addVideos({ sessionId, paths: ["/lesson.mp4"] })
     await library.selectVideo(videoId)
-    await waitUntil(() => library.snapshot().improvedCaption !== null, 3000)
+    await library.generateSummary(videoId)
     await waitUntil(() => library.snapshot().summary !== null, 3000)
+    await waitUntil(() => library.snapshot().improvedCaption !== null, 3000)
     expect(library.snapshot().improvedCaption?.segments[0]?.text).toContain("useEffect")
     expect(library.snapshot().summary).toBe("خلاصه درس: افکت و debounce")
     expect(library.snapshot().videos.find((video) => video.id === videoId)?.hasSummary).toBe(true)
@@ -55,6 +56,7 @@ describe("Improved Caption and Summary", () => {
     const sessionId = await library.createSession({ name: "S" })
     await library.addVideos({ sessionId, paths: ["/lesson.mp4"] })
     await library.selectVideo(library.snapshot().videos[0]!.id)
+    await library.generateSummary(library.snapshot().videos[0]!.id)
     await waitUntil(
       () => library.snapshot().jobs.some((job) => job.kind === "improve" && job.status === "failed"),
       3000
@@ -112,8 +114,8 @@ describe("Improved Caption and Summary", () => {
 
     await library.configureProvider({ kind: "openai", url: "http://x/v1" })
     await library.generateSummary(videoId)
-    await waitUntil(() => library.snapshot().improvedCaption !== null, 3000)
     await waitUntil(() => library.snapshot().summary !== null, 3000)
+    await waitUntil(() => library.snapshot().improvedCaption !== null, 3000)
     expect(library.snapshot().improvedCaption?.segments[0]?.text).toContain("useEffect")
     expect(library.snapshot().summary).toBe("## افکت\n\n- debounce")
   })
@@ -148,7 +150,7 @@ describe("Improved Caption and Summary", () => {
     await expect(library.generateSummary(videoId)).rejects.toThrow("No Caption to summarize")
   })
 
-  test("generateSummary queues Improve immediately even if the Provider never returns", async () => {
+  test("generateSummary queues Summary immediately even if the Provider never returns", async () => {
     const providerClient: ProviderClient = {
       complete: () => new Promise(() => undefined)
     }
@@ -160,8 +162,37 @@ describe("Improved Caption and Summary", () => {
     await library.selectVideo(videoId)
     await waitUntil(() => library.snapshot().caption !== null, 3000)
     await library.generateSummary(videoId)
-    const job = library.snapshot().jobs.find((item) => item.kind === "improve" && item.videoId === videoId)
+    const job = library.snapshot().jobs.find((item) => item.kind === "summary" && item.videoId === videoId)
     expect(job?.status === "queued" || job?.status === "running").toBe(true)
+  })
+
+  test("generateSummary writes Summary before Improve", async () => {
+    const steps: string[] = []
+    const providerClient: ProviderClient = {
+      async complete({ prompt }) {
+        if (prompt.includes("JSON")) {
+          steps.push("improve")
+          return JSON.stringify([
+            { startSeconds: 8, endSeconds: 12.4, text: "useEffect runs after paint" }
+          ])
+        }
+        steps.push("summary")
+        return "خلاصه زود"
+      }
+    }
+    const { library } = await captionLibrary(providerClient)
+    await library.configureProvider({ kind: "openai", url: "http://x/v1" })
+    await library.createCourse("C")
+    const sessionId = await library.createSession({ name: "S" })
+    const [videoId] = await library.addVideos({ sessionId, paths: ["/lesson.mp4"] })
+    await library.selectVideo(videoId)
+    await waitUntil(() => library.snapshot().caption !== null, 3000)
+    await library.generateSummary(videoId)
+    await waitUntil(() => library.snapshot().summary !== null, 3000)
+    expect(library.snapshot().summary).toBe("خلاصه زود")
+    expect(steps[0]).toBe("summary")
+    await waitUntil(() => library.snapshot().improvedCaption !== null, 3000)
+    expect(steps).toEqual(["summary", "improve"])
   })
 
   test("invalid Improved Caption JSON still writes Summary from the original Caption", async () => {
@@ -245,7 +276,9 @@ describe("Improved Caption and Summary", () => {
     )
     expect(library.snapshot().videos.find((video) => video.id === firstId)?.hasSummary).toBe(true)
     expect(library.snapshot().videos.find((video) => video.id === secondId)?.hasSummary).toBe(true)
-    expect(steps).toEqual(["improve", "summary", "improve", "summary"])
+    expect(steps.filter((step) => step === "summary")).toEqual(["summary", "summary"])
+    expect(steps[0]).toBe("summary")
+    expect(steps[1]).toBe("summary")
   })
 
   test("generateMissingSummaries skips Videos that already have a Summary or have no Caption", async () => {
@@ -334,8 +367,65 @@ describe("Improved Caption and Summary", () => {
     await expect(library.generateMissingSummaries()).rejects.toThrow("Provider is not configured")
   })
 
-  test("a long Caption is improved in several Provider calls and keeps original timestamps", async () => {
-    const body = numberedSrt(80)
+  test("a 30-minute Caption is summarized in one Provider call", async () => {
+    const body = lectureSrt(480)
+    let summaryCalls = 0
+    const providerClient: ProviderClient = {
+      async complete({ prompt }) {
+        if (prompt.includes("JSON")) {
+          const texts = JSON.parse(prompt.slice(prompt.lastIndexOf("\n[") + 1)) as string[]
+          return JSON.stringify(texts)
+        }
+        summaryCalls += 1
+        return "خلاصه درس"
+      }
+    }
+    const { library } = await longCaptionLibrary(providerClient, body)
+    await library.createCourse("C")
+    const sessionId = await library.createSession({ name: "S" })
+    const [videoId] = await library.addVideos({ sessionId, paths: ["/lesson.mp4"] })
+    await library.selectVideo(videoId)
+    await waitUntil(() => library.snapshot().caption !== null, 3000)
+    await library.configureProvider({ kind: "openai", url: "http://x/v1" })
+    await library.generateSummary(videoId)
+    await waitUntil(() => library.snapshot().summary !== null, 3000)
+    expect(summaryCalls).toBe(1)
+    expect(library.snapshot().summary).toBe("خلاصه درس")
+  })
+
+  test("a Caption within the Improve budget is improved in one Provider call and keeps original timestamps", async () => {
+    const body = lectureSrt(80)
+    let improveCalls = 0
+    const providerClient: ProviderClient = {
+      async complete({ prompt }) {
+        if (prompt.includes("JSON")) {
+          improveCalls += 1
+          const texts = JSON.parse(prompt.slice(prompt.lastIndexOf("\n[") + 1)) as string[]
+          return JSON.stringify(texts.map((text) => text.replace("cue", "improved")))
+        }
+        return "خلاصه"
+      }
+    }
+    const { library } = await longCaptionLibrary(providerClient, body)
+    await library.createCourse("C")
+    const sessionId = await library.createSession({ name: "S" })
+    const [videoId] = await library.addVideos({ sessionId, paths: ["/lesson.mp4"] })
+    await library.selectVideo(videoId)
+    await waitUntil(() => library.snapshot().caption !== null, 3000)
+    await library.configureProvider({ kind: "openai", url: "http://x/v1" })
+    await library.generateSummary(videoId)
+    await waitUntil(() => library.snapshot().improvedCaption !== null, 3000)
+    expect(improveCalls).toBe(1)
+    const segments = library.snapshot().improvedCaption!.segments
+    expect(segments).toHaveLength(80)
+    expect(segments[0]?.text).toContain("improved 0")
+    expect(segments[79]?.text).toContain("improved 79")
+    expect(segments[0]?.startSeconds).toBe(0)
+    expect(segments[1]?.startSeconds).toBe(4)
+  })
+
+  test("a Caption over the Improve budget is split across Provider calls", async () => {
+    const body = numberedSrt(600)
     let improveCalls = 0
     const providerClient: ProviderClient = {
       async complete({ prompt }) {
@@ -358,15 +448,13 @@ describe("Improved Caption and Summary", () => {
     await waitUntil(() => library.snapshot().improvedCaption !== null, 3000)
     expect(improveCalls).toBeGreaterThan(1)
     const segments = library.snapshot().improvedCaption!.segments
-    expect(segments).toHaveLength(80)
+    expect(segments).toHaveLength(600)
     expect(segments[0]?.text).toContain("improved 0")
-    expect(segments[79]?.text).toContain("improved 79")
-    expect(segments[0]?.startSeconds).toBe(0)
-    expect(segments[1]?.startSeconds).toBe(2)
+    expect(segments[599]?.text).toContain("improved 599")
   })
 
   test("a broken Improve chunk keeps original text there and still completes the rest", async () => {
-    const body = numberedSrt(80)
+    const body = numberedSrt(600)
     let improveCalls = 0
     const providerClient: ProviderClient = {
       async complete({ prompt }) {
@@ -396,7 +484,38 @@ describe("Improved Caption and Summary", () => {
       library.snapshot().jobs.some((job) => job.kind === "improve" && job.status === "complete")
     ).toBe(true)
   })
+
+  test("dismissFailedJobs clears failed Jobs and leaves Caption and Summary", async () => {
+    const providerClient: ProviderClient = {
+      async complete() {
+        throw new Error("Provider timed out")
+      }
+    }
+    const { library } = await captionLibrary(providerClient)
+    await library.configureProvider({ kind: "openai", url: "http://x/v1" })
+    await library.createCourse("C")
+    const sessionId = await library.createSession({ name: "S" })
+    const [videoId] = await library.addVideos({ sessionId, paths: ["/lesson.mp4"] })
+    await library.selectVideo(videoId)
+    await library.generateSummary(videoId)
+    await waitUntil(
+      () => library.snapshot().jobs.some((job) => job.status === "failed"),
+      3000
+    )
+    expect(library.snapshot().caption).not.toBeNull()
+    await library.dismissFailedJobs()
+    expect(library.snapshot().jobs.some((job) => job.status === "failed")).toBe(false)
+    expect(library.snapshot().caption).not.toBeNull()
+  })
 })
+
+function lectureSrt(count: number): string {
+  return Array.from({ length: count }, (_, i) => {
+    const start = i * 4
+    const end = start + 3
+    return `${i + 1}\n${srtStamp(start)} --> ${srtStamp(end)}\ncue ${i}\n`
+  }).join("\n")
+}
 
 function numberedSrt(count: number): string {
   return Array.from({ length: count }, (_, i) => {

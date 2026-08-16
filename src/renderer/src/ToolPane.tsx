@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { textDirection } from "../../library/textDirection.js";
+import { AddNoteFromSelection } from "./AddNoteFromSelection";
 import { Markdown } from "./Markdown";
 import { t } from "./uiText";
 
@@ -399,11 +400,7 @@ function SummaryPane({
   }
 
   if (snapshot.summary && !busy) {
-    return (
-      <ScrollArea className="min-h-0 flex-1">
-        <Markdown text={snapshot.summary} />
-      </ScrollArea>
-    );
+    return <SummaryMarkdown lang={lang} text={snapshot.summary} />;
   }
 
   return (
@@ -423,11 +420,19 @@ function SummaryPane({
           {busy ? t(lang, "summaryGenerating") : t(lang, "generateSummary")}
         </Button>
       ) : null}
-      {snapshot.summary && busy ? (
-        <ScrollArea className="min-h-0 flex-1">
-          <Markdown text={snapshot.summary} />
-        </ScrollArea>
-      ) : null}
+      {snapshot.summary && busy ? <SummaryMarkdown lang={lang} text={snapshot.summary} /> : null}
+    </div>
+  );
+}
+
+function SummaryMarkdown({ lang, text }: { lang: AppLanguage; text: string }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  return (
+    <div ref={rootRef} className="relative min-h-0 flex-1">
+      <ScrollArea className="min-h-0 h-full">
+        <Markdown text={text} />
+      </ScrollArea>
+      <AddNoteFromSelection lang={lang} rootRef={rootRef} />
     </div>
   );
 }

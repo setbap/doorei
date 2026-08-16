@@ -1,3 +1,4 @@
+import { formatStamp } from "./hitLinks.js"
 import { jsonrepair } from "jsonrepair"
 import { REQUIRED_MODELS } from "./models.js"
 import { captionFromSidecar } from "./parseCaption.js"
@@ -23,6 +24,7 @@ import type {
   LibrarySnapshot,
   PlayerSettings,
   ProviderConfig,
+  ProviderVault,
   SearchScope,
   SpokenLanguage,
   VideoRecord
@@ -39,8 +41,8 @@ const DEFAULT_PROMPTS = {
 const LEGACY_IMPROVE_PROMPT =
   "Rewrite this Caption with corrected wording. Keep the same timestamps and the same Spoken language. Fix technical terms. Return only a JSON array of {startSeconds, endSeconds, text}."
 
-const IMPROVE_CHUNK_SEGMENTS = 32
-const IMPROVE_CHUNK_CHARS = 4000
+const IMPROVE_CHUNK_SEGMENTS = 80
+const IMPROVE_CHUNK_CHARS = 12_000
 
 const DEFAULT_SETTINGS: PlayerSettings = {
   autoplay: false,
@@ -137,14 +139,16 @@ function asJsonArray(parsed: unknown): unknown[] {
   return parsed
 }
 
-function parseImprovedTexts(raw: string): string[] {
-  return parseJsonArray(raw).map((item, index) => {
+function parseImprovedTexts(raw: string, originals: string[]): string[] {
+  const parsed = parseJsonArray(raw)
+  return originals.map((original, index) => {
+    const item = parsed[index]
     if (typeof item === "string") return item
     if (item && typeof item === "object" && "text" in item) {
       const text = (item as { text: unknown }).text
       if (typeof text === "string") return text
     }
-    throw new Error(`Provider returned invalid Improved Caption at ${index}`)
+    return original
   })
 }
 
@@ -167,6 +171,23 @@ function chunkCaption(segments: CaptionSegment[]): CaptionSegment[][] {
   }
   if (current.length > 0) chunks.push(current)
   return chunks
+}
+
+function captionLines(segments: CaptionSegment[]): string {
+  return segments
+    .map((segment) => `[${formatStamp(segment.startSeconds)}] ${segment.text}`)
+    .join("\n")
+}
+
+function vaultSnapshot(state: {
+  provider: ProviderConfig | null
+  providerVault: ProviderVault
+}): ProviderVault {
+  const vault: ProviderVault = { ...state.providerVault }
+  if (!state.provider) return vault
+  const { kind, ...fields } = state.provider
+  vault[kind] = { ...vault[kind], ...fields }
+  return vault
 }
 
 function cosine(a: number[], b: number[]): number {
@@ -455,11 +476,11 @@ export function createLibrary(deps: LibraryDeps): Library {
       const busy = state.jobs.some(
         (job) =>
           job.videoId === videoId &&
-          (job.kind === "improve" || job.kind === "summary") &&
+          job.kind === "summary" &&
           (job.status === "queued" || job.status === "running")
       )
       if (busy) return
-      upsertJob("improve", videoId)
+      upsertJob("summary", videoId)
       emit()
       kick()
       return
@@ -478,6 +499,7 @@ export function createLibrary(deps: LibraryDeps): Library {
       .then(async () => {
         const job =
           state.jobs.find((item) => item.status === "queued" && item.kind === "captioning") ??
+          state.jobs.find((item) => item.status === "queued" && item.kind === "summary") ??
           state.jobs.find((item) => item.status === "queued")
         if (!job) return
         job.status = "running"
@@ -491,7 +513,12 @@ export function createLibrary(deps: LibraryDeps): Library {
           job.status = "failed"
           job.error = error instanceof Error ? error.message : String(error)
           emit()
-          if (job.kind === "improve" && (state.captions[job.videoId]?.segments.length ?? 0) > 0) {
+          if (
+            job.kind === "improve" &&
+            (state.captions[job.videoId]?.segments.length ?? 0) > 0 &&
+            !state.summaries[job.videoId] &&
+            !state.jobs.some((item) => item.kind === "summary" && item.videoId === job.videoId)
+          ) {
             upsertJob("summary", job.videoId)
           } else if (job.kind === "improve" || job.kind === "summary") {
             finishMissingSummary(job.videoId)
@@ -503,9 +530,6 @@ export function createLibrary(deps: LibraryDeps): Library {
 
   function afterCaption(videoId: string): void {
     upsertJob("embed", videoId)
-    if (state.provider) {
-      upsertJob("improve", videoId)
-    }
   }
 
   async function runCaptioning(job: Job): Promise<void> {
@@ -598,7 +622,10 @@ export function createLibrary(deps: LibraryDeps): Library {
       })
       let texts: string[]
       try {
-        texts = parseImprovedTexts(raw)
+        texts = parseImprovedTexts(
+          raw,
+          chunk.map((segment) => segment.text)
+        )
         parsedAny = true
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
@@ -617,15 +644,22 @@ export function createLibrary(deps: LibraryDeps): Library {
       job.status = "failed"
       job.error = lastError?.message ?? "Provider returned invalid Improved Caption"
       emit()
-      upsertJob("summary", job.videoId)
-      kick()
+      if (
+        !state.summaries[job.videoId] &&
+        !state.jobs.some((item) => item.kind === "summary" && item.videoId === job.videoId)
+      ) {
+        upsertJob("summary", job.videoId)
+        kick()
+      } else {
+        finishMissingSummary(job.videoId)
+      }
       return
     }
     state.improvedCaptions[job.videoId] = { source: caption.source, segments: improved }
     job.status = "complete"
     job.progress = 1
     emit()
-    upsertJob("summary", job.videoId)
+    if (!state.summaries[job.videoId]) upsertJob("summary", job.videoId)
     upsertJob("embed", job.videoId)
     kick()
   }
@@ -646,7 +680,7 @@ export function createLibrary(deps: LibraryDeps): Library {
     const text = unwrapFence(
       await deps.providerClient.complete({
         system: state.prompts.summary,
-        prompt: `Output language: ${outputLanguage}\n${JSON.stringify(caption.segments)}`
+        prompt: `Output language: ${outputLanguage}\n${captionLines(caption.segments)}`
       })
     )
     if (!text) throw new Error("Provider returned an empty Summary")
@@ -674,6 +708,7 @@ export function createLibrary(deps: LibraryDeps): Library {
       direction: direction(),
       providerConfigured: state.provider !== null,
       provider: state.provider ? { ...state.provider } : null,
+      providerVault: vaultSnapshot(state),
       spokenLanguageDefault: state.spokenLanguageDefault,
       settings: { ...DEFAULT_SETTINGS, ...state.settings },
       prompts: { ...state.prompts },
@@ -724,7 +759,13 @@ export function createLibrary(deps: LibraryDeps): Library {
     emit()
   }
 
-  async function configureProvider(config: ProviderConfig | null): Promise<void> {
+  async function configureProvider(config: ProviderConfig | null, vault?: ProviderVault): Promise<void> {
+    if (vault) {
+      state.providerVault = { ...vault }
+    } else if (config) {
+      const { kind, ...fields } = config
+      state.providerVault = { ...state.providerVault, [kind]: fields }
+    }
     state.provider = config
     emit()
   }
@@ -1258,12 +1299,25 @@ export function createLibrary(deps: LibraryDeps): Library {
       emit()
       kick()
     },
+    async dismissFailedJobs() {
+      assertUsable()
+      state.jobs = state.jobs.filter((job) => job.status !== "failed")
+      emit()
+    },
     async regenerateCaption(videoId) {
       assertUsable()
       delete state.captions[videoId]
       delete state.improvedCaptions[videoId]
       const video = state.videos.find((item) => item.id === videoId)
       if (video) video.captioningProgress = 0
+      state.jobs = state.jobs.filter(
+        (job) =>
+          !(
+            job.videoId === videoId &&
+            (job.kind === "improve" || job.kind === "summary") &&
+            job.status === "failed"
+          )
+      )
       upsertJob("captioning", videoId)
       emit()
       kick()
@@ -1273,6 +1327,7 @@ export function createLibrary(deps: LibraryDeps): Library {
       if (!state.provider) throw new Error("Provider is not configured")
       const caption = state.captions[videoId]
       if (!caption?.segments.length) throw new Error("No Caption to summarize")
+      upsertJob("summary", videoId)
       upsertJob("improve", videoId)
       emit()
       kick()

@@ -1,9 +1,11 @@
 import { useState } from "react"
-import type { AppLanguage, LibrarySnapshot, SpokenLanguage } from "../../library/types.js"
 import {
+  providerByKindFromVault,
   providerConfigFromFields,
+  providerVaultFromFields,
   type ProviderFieldKind
 } from "../../library/providerConfig.js"
+import type { AppLanguage, LibrarySnapshot, SpokenLanguage } from "../../library/types.js"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -42,8 +44,7 @@ const tabPanelClass = "min-h-72 overflow-y-auto pb-1"
 
 export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
   const [kind, setKind] = useState<ProviderFieldKind>(snapshot.provider?.kind ?? "none")
-  const [url, setUrl] = useState(snapshot.provider?.url ?? "")
-  const [key, setKey] = useState(snapshot.provider?.key ?? "")
+  const [byKind, setByKind] = useState(() => providerByKindFromVault(snapshot.providerVault))
   const [improve, setImprove] = useState(snapshot.prompts.improve)
   const [summary, setSummary] = useState(snapshot.prompts.summary)
   const [ask, setAsk] = useState(snapshot.prompts.ask)
@@ -150,11 +151,14 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
             <ProviderFields
               lang={lang}
               kind={kind}
-              url={url}
-              keyValue={key}
+              byKind={byKind}
               onKindChange={setKind}
-              onUrlChange={setUrl}
-              onKeyChange={setKey}
+              onFieldsChange={(nextKind, patch) =>
+                setByKind((current) => ({
+                  ...current,
+                  [nextKind]: { ...current[nextKind], ...patch }
+                }))
+              }
             />
           </TabsContent>
           <TabsContent value="prompts" className={tabPanelClass}>
@@ -213,7 +217,8 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
             onClick={() => {
               void window.doorei.call(
                 "configureProvider",
-                providerConfigFromFields({ kind, url, key })
+                providerConfigFromFields({ kind, byKind }),
+                providerVaultFromFields(byKind)
               )
               void window.doorei.call("updatePrompt", "improve", improve)
               void window.doorei.call("updatePrompt", "summary", summary)

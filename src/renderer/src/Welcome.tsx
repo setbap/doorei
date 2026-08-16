@@ -3,10 +3,14 @@ import { ArrowLeft, Cable, Languages, Package } from "lucide-react";
 import type {
   AppLanguage,
   LibrarySnapshot,
+  ProviderKind,
+  ProviderKindFields,
   SpokenLanguage,
 } from "../../library/types.js";
 import {
+  providerByKindFromVault,
   providerConfigFromFields,
+  providerVaultFromFields,
   type ProviderFieldKind,
 } from "../../library/providerConfig.js";
 import { MODEL_HUB_LINKS } from "../../library/models.js";
@@ -39,8 +43,9 @@ export function Welcome({ snapshot }: Props) {
   const [kind, setKind] = useState<ProviderFieldKind>(
     snapshot.provider?.kind ?? "none"
   );
-  const [url, setUrl] = useState(snapshot.provider?.url ?? "");
-  const [key, setKey] = useState(snapshot.provider?.key ?? "");
+  const [byKind, setByKind] = useState(() =>
+    providerByKindFromVault(snapshot.providerVault)
+  );
   const nativeGlass = window.doorei.platform === "darwin";
 
   const allComplete = snapshot.requiredModels.every((model) => model.complete);
@@ -68,22 +73,26 @@ export function Welcome({ snapshot }: Props) {
             lang={selected}
             spoken={spoken}
             kind={kind}
-            url={url}
-            keyValue={key}
+            byKind={byKind}
             models={models}
             allComplete={allComplete}
             onBack={() => setStep("intro")}
             onAppLanguage={setSelected}
             onSpokenLanguage={setSpoken}
             onKindChange={setKind}
-            onUrlChange={setUrl}
-            onKeyChange={setKey}
+            onFieldsChange={(nextKind, patch) =>
+              setByKind((current) => ({
+                ...current,
+                [nextKind]: { ...current[nextKind], ...patch },
+              }))
+            }
             onOpen={() => {
               void (async () => {
                 await window.doorei.call("setSpokenLanguageDefault", spoken);
                 await window.doorei.call(
                   "configureProvider",
-                  providerConfigFromFields({ kind, url, key })
+                  providerConfigFromFields({ kind, byKind }),
+                  providerVaultFromFields(byKind)
                 );
                 await window.doorei.call("chooseAppLanguage", selected);
               })();
@@ -123,31 +132,27 @@ function Setup({
   lang,
   spoken,
   kind,
-  url,
-  keyValue,
+  byKind,
   models,
   allComplete,
   onBack,
   onAppLanguage,
   onSpokenLanguage,
   onKindChange,
-  onUrlChange,
-  onKeyChange,
+  onFieldsChange,
   onOpen,
 }: {
   lang: AppLanguage;
   spoken: SpokenLanguage;
   kind: ProviderFieldKind;
-  url: string;
-  keyValue: string;
+  byKind: ReturnType<typeof providerByKindFromVault>;
   models: { id: string; complete: boolean; label: string }[];
   allComplete: boolean;
   onBack: () => void;
   onAppLanguage: (language: AppLanguage) => void;
   onSpokenLanguage: (language: SpokenLanguage) => void;
   onKindChange: (kind: ProviderFieldKind) => void;
-  onUrlChange: (url: string) => void;
-  onKeyChange: (key: string) => void;
+  onFieldsChange: (kind: ProviderKind, patch: Partial<ProviderKindFields>) => void;
   onOpen: () => void;
 }) {
   return (
@@ -235,11 +240,9 @@ function Setup({
           <ProviderFields
             lang={lang}
             kind={kind}
-            url={url}
-            keyValue={keyValue}
+            byKind={byKind}
             onKindChange={onKindChange}
-            onUrlChange={onUrlChange}
-            onKeyChange={onKeyChange}
+            onFieldsChange={onFieldsChange}
           />
         </div>
       </section>

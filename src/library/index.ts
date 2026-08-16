@@ -7,7 +7,12 @@ export {
   hubUrlForModel
 } from "./models.js"
 export { createLibrary } from "./createLibrary.js"
-export { providerConfigFromFields } from "./providerConfig.js"
+export {
+  cursorModelSelection,
+  openaiCompleteOptions,
+  providerConfigFromFields,
+  providerVaultFromFields
+} from "./providerConfig.js"
 export type { ProviderFieldKind } from "./providerConfig.js"
 export type {
   Activity,
@@ -30,6 +35,8 @@ export type {
   ProviderClient,
   ProviderConfig,
   ProviderKind,
+  ProviderKindFields,
+  ProviderVault,
   SearchScope,
   SpeechRecognizer,
   SpokenLanguage,

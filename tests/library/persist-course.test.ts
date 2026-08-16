@@ -221,4 +221,25 @@ describe("Library persistence", () => {
     )
     expect((await reopened.search({ text: "useEffect", scope: "video" }))[0]?.startSeconds).toBe(8)
   })
+
+  test("Provider vault keys survive reopen when another kind is active", async () => {
+    const { library, dataDir, modelStore } = await unlockedLibrary()
+    await library.configureProvider(
+      { kind: "openai", url: "http://127.0.0.1:11434/v1", key: "sk-openai" },
+      {
+        openai: { url: "http://127.0.0.1:11434/v1", key: "sk-openai", model: "llama3" },
+        cursor: { key: "cursor_k", extra: '{"fast":true}' }
+      }
+    )
+    const reopened = createLibrary({
+      dataDir,
+      modelStore,
+      media: memoryMedia(),
+      speechRecognizer: silentRecognizer(),
+      embedder: silentEmbedder()
+    })
+    expect(reopened.snapshot().provider?.kind).toBe("openai")
+    expect(reopened.snapshot().providerVault.cursor?.key).toBe("cursor_k")
+    expect(reopened.snapshot().providerVault.openai?.model).toBe("llama3")
+  })
 })

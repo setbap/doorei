@@ -6,6 +6,7 @@ import {
   PanelRightOpen,
   Plus,
   Settings,
+  X,
 } from "lucide-react";
 import { usePanelRef } from "react-resizable-panels";
 import type {
@@ -137,6 +138,10 @@ export function Shell({ snapshot }: Props) {
       job.status === "queued" ||
       job.status === "running" ||
       job.status === "failed"
+  );
+  const failedJobs = jobs.filter((job) => job.status === "failed");
+  const busyJobs = jobs.some(
+    (job) => job.status === "queued" || job.status === "running"
   );
   const rtl = snapshot.direction === "rtl";
   const LibraryToggleIcon = libraryOpen
@@ -556,10 +561,24 @@ export function Shell({ snapshot }: Props) {
         <footer className="flex items-center justify-between border-t border-white/10 bg-black/50 px-4 py-1 text-xs text-muted-foreground backdrop-blur-xl backdrop-saturate-150">
           <span>{snapshot.selectedCourseName ?? t(lang, "appName")}</span>
           <span
-            className="min-w-0 flex-1 truncate px-3 text-center"
-            title={jobStatusLine(snapshot, jobs)}
+            className="flex min-w-0 flex-1 items-center justify-center gap-1 px-3"
+            title={jobs.length ? jobStatusLine(snapshot, jobs) : undefined}
           >
-            {jobs.length ? jobStatusLine(snapshot, jobs) : t(lang, "jobs")}
+            <span className="min-w-0 truncate text-center">
+              {jobs.length ? jobStatusLine(snapshot, jobs) : t(lang, "jobs")}
+            </span>
+            {failedJobs.length > 0 && !busyJobs ? (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                title={t(lang, "clearFailedJobs")}
+                aria-label={t(lang, "clearFailedJobs")}
+                onClick={() => void window.doorei.call("dismissFailedJobs")}
+              >
+                <X />
+              </Button>
+            ) : null}
           </span>
           <span>
             {snapshot.providerConfigured

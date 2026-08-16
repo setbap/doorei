@@ -1,8 +1,10 @@
 import MarkdownImpl from "react-markdown"
+import remarkGfm from "remark-gfm"
 import type { ReactNode } from "react"
 import type { Hit } from "../../library/types.js"
 import { textDirection } from "../../library/textDirection.js"
 import { linkHitCitations, resolveHit } from "../../library/hitLinks.js"
+import { repairMarkdownTables } from "../../library/markdownTables.js"
 
 export function Markdown({
   text,
@@ -16,8 +18,16 @@ export function Markdown({
   return (
     <div className="summary-markdown text-sm leading-6" dir={textDirection(text)}>
       <MarkdownImpl
+        remarkPlugins={[remarkGfm]}
         urlTransform={(url) => url}
         components={{
+          table({ children }) {
+            return (
+              <div className="overflow-x-auto">
+                <table>{children}</table>
+              </div>
+            )
+          },
           a({ href, children }) {
             return (
               <a
@@ -39,7 +49,7 @@ export function Markdown({
           }
         }}
       >
-        {linkHitCitations(text, hits)}
+        {linkHitCitations(repairMarkdownTables(text), hits)}
       </MarkdownImpl>
     </div>
   )

@@ -12,6 +12,7 @@ import type {
   Note,
   PlayerSettings,
   ProviderConfig,
+  ProviderVault,
   SpokenLanguage,
   VideoRecord
 } from "./types.js"
@@ -26,6 +27,7 @@ export type LibraryState = {
   appLanguage: AppLanguage | null
   outputLanguage: AppLanguage | null
   provider: ProviderConfig | null
+  providerVault: ProviderVault
   spokenLanguageDefault: SpokenLanguage
   settings: PlayerSettings
   prompts: { improve: string; summary: string; ask: string }
@@ -79,6 +81,7 @@ export function emptyLibraryState(): LibraryState {
     appLanguage: null,
     outputLanguage: null,
     provider: null,
+    providerVault: {},
     spokenLanguageDefault: "fa",
     settings: { ...DEFAULT_SETTINGS },
     prompts: { ...DEFAULT_PROMPTS },
@@ -392,6 +395,7 @@ function writeApp(dataDir: string, state: LibraryState): void {
     kvSet(db, "appLanguage", JSON.stringify(state.appLanguage))
     kvSet(db, "outputLanguage", JSON.stringify(state.outputLanguage))
     kvSet(db, "provider", JSON.stringify(state.provider))
+    kvSet(db, "providerVault", JSON.stringify(state.providerVault))
     kvSet(db, "spokenLanguageDefault", JSON.stringify(state.spokenLanguageDefault))
     kvSet(db, "settings", JSON.stringify(state.settings))
     kvSet(db, "prompts", JSON.stringify(state.prompts))
@@ -591,6 +595,7 @@ function loadSqlite(dataDir: string): LibraryState {
     state.appLanguage = parseJson(kvGet(db, "appLanguage"), null)
     state.outputLanguage = parseJson(kvGet(db, "outputLanguage"), null)
     state.provider = parseJson(kvGet(db, "provider"), null)
+    state.providerVault = parseJson(kvGet(db, "providerVault"), {})
     state.spokenLanguageDefault = parseJson(kvGet(db, "spokenLanguageDefault"), "fa")
     state.settings = { ...DEFAULT_SETTINGS, ...parseJson(kvGet(db, "settings"), {}) }
     state.prompts = { ...DEFAULT_PROMPTS, ...parseJson(kvGet(db, "prompts"), {}) }

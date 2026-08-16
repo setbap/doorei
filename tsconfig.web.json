@@ -29,6 +29,7 @@
     "src/library/treeDrop.ts",
     "src/library/providerConfig.ts",
     "src/library/textDirection.ts",
-    "src/library/hitLinks.ts"
+    "src/library/hitLinks.ts",
+    "src/library/markdownTables.ts"
   ]
 }

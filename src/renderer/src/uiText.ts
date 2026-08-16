@@ -29,6 +29,17 @@ const en: Dict = {
   providerOptional: "Provider (optional)",
   providerUrl: "OpenAI-compatible URL",
   providerKey: "Provider key",
+  providerModel: "Model id",
+  providerModelHintOpenAI:
+    "The chat model name this endpoint expects, for example gpt-4o-mini or llama3.1.",
+  providerModelHintCursor:
+    "Cursor model id, for example composer-2.5. Leave blank for composer-2.5 in fast mode.",
+  providerModelHintSdk: "Optional model id for this Provider. Leave blank for its default.",
+  providerExtra: "Parameters (JSON)",
+  providerExtraHintOpenAI:
+    "Optional request fields such as {\"temperature\":0.2,\"max_tokens\":4096,\"reasoning_effort\":\"low\"}.",
+  providerExtraHintCursor:
+    "Per-model variables such as {\"fast\":true} or thinking/reasoning params from the Cursor catalog.",
   providerNone: "None",
   providerKindOpenAI: "OpenAI-compatible",
   providerKindCodex: "Codex",
@@ -59,6 +70,7 @@ const en: Dict = {
   notes: "Notes",
   note: "Note",
   composerPlaceholder: "Write a Note…",
+  addAsNote: "Add as Note",
   timestamp: "Timestamp",
   noVideo: "Select a Video to play",
   fileMissing: "File missing",
@@ -130,6 +142,7 @@ const en: Dict = {
   cancel: "Cancel",
   providerKind: "Provider kind",
   jobs: "Jobs",
+  clearFailedJobs: "Clear failed Jobs",
   emptyLibrary: "Create a Course to start.",
   create: "Create",
   renameCourse: "Rename Course",
@@ -184,6 +197,17 @@ const fa: Dict = {
   providerOptional: "ارائه‌دهنده (اختیاری)",
   providerUrl: "نشانی سازگار با OpenAI",
   providerKey: "کلید ارائه‌دهنده",
+  providerModel: "شناسه مدل",
+  providerModelHintOpenAI:
+    "نام مدلی که این نشانی انتظار دارد، مثلاً gpt-4o-mini یا llama3.1.",
+  providerModelHintCursor:
+    "شناسه مدل کورسر، مثلاً composer-2.5. خالی بگذارید تا composer-2.5 در حالت سریع استفاده شود.",
+  providerModelHintSdk: "شناسه مدل اختیاری برای این ارائه‌دهنده. خالی یعنی پیش‌فرض خودش.",
+  providerExtra: "پارامترها (JSON)",
+  providerExtraHintOpenAI:
+    "فیلدهای اختیاری درخواست مثل {\"temperature\":0.2,\"max_tokens\":4096,\"reasoning_effort\":\"low\"}.",
+  providerExtraHintCursor:
+    "متغیرهای مدل مثل {\"fast\":true} یا پارامترهای thinking از فهرست کورسر.",
   providerNone: "هیچ",
   providerKindOpenAI: "سازگار با OpenAI",
   providerKindCodex: "Codex",
@@ -214,6 +238,7 @@ const fa: Dict = {
   notes: "یادداشت‌ها",
   note: "یادداشت",
   composerPlaceholder: "یک یادداشت بنویسید…",
+  addAsNote: "افزودن یادداشت",
   timestamp: "زمان",
   noVideo: "یک ویدیو را برای پخش انتخاب کنید",
   fileMissing: "فایل پیدا نشد",
@@ -285,6 +310,7 @@ const fa: Dict = {
   cancel: "لغو",
   providerKind: "نوع ارائه‌دهنده",
   jobs: "کارها",
+  clearFailedJobs: "پاک کردن کارهای ناموفق",
   emptyLibrary: "برای شروع یک دوره بسازید.",
   create: "بساز",
   renameCourse: "تغییر نام دوره",

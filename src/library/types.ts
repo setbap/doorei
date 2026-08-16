@@ -20,11 +20,18 @@ export type Caption = {
   segments: CaptionSegment[]
 }
 
-export type ProviderConfig = {
-  kind: ProviderKind
+export type ProviderKindFields = {
   url?: string
   key?: string
+  model?: string
+  extra?: string
 }
+
+export type ProviderVault = Partial<Record<ProviderKind, ProviderKindFields>>
+
+export type ProviderConfig = {
+  kind: ProviderKind
+} & ProviderKindFields
 
 export type PlayerSettings = {
   autoplay: boolean
@@ -118,6 +125,7 @@ export type LibrarySnapshot = {
   direction: "rtl" | "ltr"
   providerConfigured: boolean
   provider: ProviderConfig | null
+  providerVault: ProviderVault
   spokenLanguageDefault: SpokenLanguage
   settings: PlayerSettings
   prompts: { improve: string; summary: string; ask: string }
@@ -184,7 +192,7 @@ export type Library = {
 
   chooseAppLanguage(language: AppLanguage): Promise<void>
   setOutputLanguage(language: AppLanguage): Promise<void>
-  configureProvider(config: ProviderConfig | null): Promise<void>
+  configureProvider(config: ProviderConfig | null, vault?: ProviderVault): Promise<void>
   setSpokenLanguageDefault(language: SpokenLanguage): Promise<void>
   updateSettings(patch: Partial<PlayerSettings>): Promise<void>
   updatePrompt(job: "improve" | "summary" | "ask", prompt: string): Promise<void>
@@ -229,6 +237,7 @@ export type Library = {
   setActivity(activity: Activity): Promise<void>
 
   retryJob(jobId: string): Promise<void>
+  dismissFailedJobs(): Promise<void>
   regenerateCaption(videoId: string): Promise<void>
   generateSummary(videoId: string): Promise<void>
   generateMissingSummaries(): Promise<void>

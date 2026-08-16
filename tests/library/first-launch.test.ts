@@ -73,6 +73,22 @@ describe("first launch", () => {
     expect(library.snapshot().usable).toBe(true)
   })
 
+  test("each Provider kind keeps its own key when another kind is active", async () => {
+    const { library, modelStore } = createTestLibrary()
+    modelStore.markAllRequired()
+    await library.chooseAppLanguage("fa")
+    await library.configureProvider(
+      { kind: "openai", url: "http://127.0.0.1:11434/v1", key: "sk-openai", model: "llama3" },
+      {
+        openai: { url: "http://127.0.0.1:11434/v1", key: "sk-openai", model: "llama3" },
+        cursor: { key: "cursor_k", model: "composer-2.5", extra: '{"fast":true}' }
+      }
+    )
+    expect(library.snapshot().provider?.key).toBe("sk-openai")
+    expect(library.snapshot().providerVault.cursor?.key).toBe("cursor_k")
+    expect(library.snapshot().providerVault.cursor?.model).toBe("composer-2.5")
+  })
+
   test("required model ids are Shenava, Parakeet, and multilingual-e5-small", () => {
     expect(REQUIRED_MODELS.shenava).toBe("Reza2kn/Shenava-Koochik-v1.0-ONNX-fp16")
     expect(REQUIRED_MODELS.parakeet).toBe("istupakov/parakeet-tdt-0.6b-v3-onnx")

@@ -3,6 +3,10 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createOpenAI } from "@ai-sdk/openai"
 import { generateText } from "ai"
+import {
+  cursorModelSelection,
+  openaiCompleteOptions
+} from "../library/providerConfig.js"
 import type { Library, ProviderClient, ProviderConfig } from "../library/index.js"
 
 export type ProviderCompleteInput = { system: string; prompt: string }
@@ -29,10 +33,16 @@ async function completeOpenAI(
     baseURL: config.url,
     apiKey: config.key || "not-needed"
   })
+  const options = openaiCompleteOptions(config)
   const { text } = await generateText({
-    model: openai.chat("gpt-4o-mini"),
+    model: openai.chat(options.modelId),
     system: input.system,
-    prompt: input.prompt
+    prompt: input.prompt,
+    ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+    ...(options.maxOutputTokens !== undefined ? { maxOutputTokens: options.maxOutputTokens } : {}),
+    ...(options.topP !== undefined ? { topP: options.topP } : {}),
+    ...(options.seed !== undefined ? { seed: options.seed } : {}),
+    ...(options.providerOptions ? { providerOptions: options.providerOptions } : {})
   })
   return text
 }
@@ -84,7 +94,8 @@ async function completeCodex(
       skipGitRepoCheck: true,
       sandboxMode: "read-only",
       approvalPolicy: "never",
-      networkAccessEnabled: false
+      networkAccessEnabled: false,
+      ...(config.model?.trim() ? { model: config.model.trim() } : {})
     })
     const turn = await thread.run(promptWithSystem(input))
     if (!turn.finalResponse) {
@@ -134,7 +145,7 @@ async function completeCursor(
     const { Agent } = await import("@cursor/sdk")
     const result = await Agent.prompt(promptWithSystem(input), {
       apiKey: config.key,
-      model: { id: "auto" },
+      model: cursorModelSelection(config),
       tools: [],
       local: { cwd, settingSources: [] }
     })

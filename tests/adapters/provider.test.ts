@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest"
 import { createProviderClient, type ProviderKindClients } from "../../src/adapters/provider.js"
-import { providerConfigFromFields } from "../../src/library/providerConfig.js"
+import {
+  cursorModelSelection,
+  openaiCompleteOptions,
+  providerConfigFromFields
+} from "../../src/library/providerConfig.js"
 import type { Library, ProviderConfig } from "../../src/library/index.js"
 
 function libraryWith(provider: ProviderConfig | null): Library {
@@ -67,13 +71,21 @@ describe("Provider fields", () => {
     expect(providerConfigFromFields({ kind: "cursor", url: "", key: "" })).toBeNull()
   })
 
-  test("openai keeps URL and key for the OpenAI-compatible client", () => {
+  test("openai keeps URL, key, model id, and extra params for the OpenAI-compatible client", () => {
     expect(
-      providerConfigFromFields({ kind: "openai", url: " http://127.0.0.1:11434/v1 ", key: " sk " })
+      providerConfigFromFields({
+        kind: "openai",
+        url: " http://127.0.0.1:11434/v1 ",
+        key: " sk ",
+        model: " llama3.1 ",
+        extra: ' {"temperature":0.2} '
+      })
     ).toEqual({
       kind: "openai",
       url: "http://127.0.0.1:11434/v1",
-      key: "sk"
+      key: "sk",
+      model: "llama3.1",
+      extra: '{"temperature":0.2}'
     })
   })
 
@@ -84,9 +96,81 @@ describe("Provider fields", () => {
     expect(providerConfigFromFields({ kind: "opencode", url: "", key: "" })).toEqual({
       kind: "opencode"
     })
-    expect(providerConfigFromFields({ kind: "cursor", url: "", key: " cursor_k " })).toEqual({
+    expect(
+      providerConfigFromFields({
+        kind: "cursor",
+        url: "",
+        key: " cursor_k ",
+        model: " composer-2.5 ",
+        extra: ' {"fast":true} '
+      })
+    ).toEqual({
       kind: "cursor",
-      key: "cursor_k"
+      key: "cursor_k",
+      model: "composer-2.5",
+      extra: '{"fast":true}'
+    })
+  })
+
+  test("each Provider kind keeps its own key when fields are stored per kind", () => {
+    const byKind = {
+      openai: { url: "http://127.0.0.1:11434/v1", key: "sk-openai", model: "gpt-4o-mini" },
+      cursor: { key: "cursor_k", model: "composer-2.5", extra: '{"fast":true}' }
+    }
+    expect(providerConfigFromFields({ kind: "openai", url: "", key: "", byKind })).toEqual({
+      kind: "openai",
+      url: "http://127.0.0.1:11434/v1",
+      key: "sk-openai",
+      model: "gpt-4o-mini"
+    })
+    expect(providerConfigFromFields({ kind: "cursor", url: "", key: "", byKind })).toEqual({
+      kind: "cursor",
+      key: "cursor_k",
+      model: "composer-2.5",
+      extra: '{"fast":true}'
+    })
+  })
+})
+
+describe("Provider model selection", () => {
+  test("OpenAI-compatible uses the written model id and extra params", () => {
+    expect(
+      openaiCompleteOptions({
+        kind: "openai",
+        url: "http://x/v1",
+        model: "qwen2.5",
+        extra: '{"temperature":0.1,"max_tokens":2048,"reasoning_effort":"low"}'
+      })
+    ).toEqual({
+      modelId: "qwen2.5",
+      temperature: 0.1,
+      maxOutputTokens: 2048,
+      providerOptions: { openai: { reasoning_effort: "low" } }
+    })
+  })
+
+  test("OpenAI-compatible falls back to gpt-4o-mini when no model id is written", () => {
+    expect(openaiCompleteOptions({ kind: "openai", url: "http://x/v1" }).modelId).toBe("gpt-4o-mini")
+  })
+
+  test("Cursor uses the written model id and params such as fast", () => {
+    expect(
+      cursorModelSelection({
+        kind: "cursor",
+        key: "k",
+        model: "composer-2.5",
+        extra: '{"fast":true}'
+      })
+    ).toEqual({
+      id: "composer-2.5",
+      params: [{ id: "fast", value: "true" }]
+    })
+  })
+
+  test("Cursor without a model id uses composer-2.5 in fast mode", () => {
+    expect(cursorModelSelection({ kind: "cursor", key: "k" })).toEqual({
+      id: "composer-2.5",
+      params: [{ id: "fast", value: "true" }]
     })
   })
 })
