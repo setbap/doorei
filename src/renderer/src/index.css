@@ -212,6 +212,10 @@
     -webkit-user-select: text;
   }
 
+  textarea::placeholder {
+    line-height: inherit;
+  }
+
   img,
   a {
     -webkit-user-drag: none;

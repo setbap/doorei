@@ -446,7 +446,7 @@ function VideoRow({
     <ContextMenu>
       <ContextMenuTrigger
         className={cn(
-          "group/video mt-0.5 flex items-center gap-0.5 rounded-md",
+          "group/video mt-0.5 flex items-center gap-0.5 rounded-md pe-0.5",
           dragged?.kind === "video" && dragged.id === video.id && "opacity-50",
           videoHint === "before" && "shadow-[inset_0_2px_0_0_var(--sidebar-foreground)]",
           videoHint === "after" && "shadow-[inset_0_-2px_0_0_var(--sidebar-foreground)]"
@@ -530,7 +530,7 @@ function VideoRow({
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => event.stopPropagation()}
                 className={cn(
-                  "shrink-0 opacity-0 transition-opacity group-hover/video:opacity-100 aria-expanded:opacity-100",
+                  "shrink-0 opacity-0 transition-opacity group-hover/video:opacity-100 aria-expanded:opacity-100 focus-visible:border-transparent focus-visible:bg-muted focus-visible:opacity-100 focus-visible:ring-0",
                   selected && "opacity-70"
                 )}
               />

@@ -34,7 +34,7 @@ type Props = {
   onOpenChange: (open: boolean) => void
 }
 
-const tabPanelClass = "min-h-72 overflow-y-auto pb-1"
+const tabPanelClass = "min-h-72 overflow-y-auto px-1 py-0.5"
 
 export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
   const [kind, setKind] = useState<ProviderFieldKind>(snapshot.provider?.kind ?? "none")

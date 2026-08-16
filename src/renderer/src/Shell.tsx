@@ -340,36 +340,38 @@ export function Shell({ snapshot }: Props) {
                   {t(lang, "emptyLibrary")}
                 </p>
               )}
-              <ScrollArea className="min-h-0 flex-1 px-2 pb-2">
-                <LibraryTree
-                  snapshot={snapshot}
-                  lang={lang}
-                  onAddVideos={(sessionId, picker) =>
-                    void addVideos(picker, sessionId)
-                  }
-                  onRenameSession={(session) =>
-                    setPrompt({
-                      kind: "rename-session",
-                      id: session.id,
-                      name: session.name,
-                    })
-                  }
-                  onDeleteSession={(session) => {
-                    const empty = !snapshot.videos.some(
-                      (video) => video.sessionId === session.id
-                    );
-                    if (empty) {
-                      void window.doorei.call("deleteSession", session.id);
-                      return;
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="px-2 pb-2">
+                  <LibraryTree
+                    snapshot={snapshot}
+                    lang={lang}
+                    onAddVideos={(sessionId, picker) =>
+                      void addVideos(picker, sessionId)
                     }
-                    setPrompt({ kind: "delete-session", id: session.id });
-                  }}
-                />
+                    onRenameSession={(session) =>
+                      setPrompt({
+                        kind: "rename-session",
+                        id: session.id,
+                        name: session.name,
+                      })
+                    }
+                    onDeleteSession={(session) => {
+                      const empty = !snapshot.videos.some(
+                        (video) => video.sessionId === session.id
+                      );
+                      if (empty) {
+                        void window.doorei.call("deleteSession", session.id);
+                        return;
+                      }
+                      setPrompt({ kind: "delete-session", id: session.id });
+                    }}
+                  />
+                </div>
               </ScrollArea>
               <Separator />
               <Button
                 variant="ghost"
-                className="h-10 shrink-0 justify-start rounded-none px-4"
+                className="mx-2 mb-2 h-9 shrink-0 justify-start rounded-lg px-3 focus-visible:border-transparent focus-visible:bg-muted focus-visible:ring-0"
                 onClick={() => setSettingsOpen(true)}
               >
                 <Settings />
@@ -491,10 +493,10 @@ export function Shell({ snapshot }: Props) {
                 >
                   <div className="min-h-0 px-3 pt-2">
                     <Textarea
-                      className="h-full min-h-0 resize-none border-0 bg-transparent p-0 shadow-none field-sizing-fixed focus-visible:ring-0 dark:bg-transparent"
+                      className="block h-full min-h-0 resize-none border-0 bg-transparent p-0 text-sm leading-6 shadow-none field-sizing-fixed focus-visible:ring-0 dark:bg-transparent placeholder:leading-6"
                       placeholder={t(lang, "composerPlaceholder")}
                       value={note}
-                      dir={note.trim() ? textDirection(note) : "auto"}
+                      dir={note.trim() ? textDirection(note) : undefined}
                       onChange={(event) => setNote(event.target.value)}
                       onKeyDown={(event) => {
                         if (!isModEnter(event)) return;
