@@ -3,6 +3,7 @@ import {
   playerShortcutBlocked,
   playerShortcutFromInput,
   steppedSpeed,
+  steppedVolume,
   type PlayerKeyTarget
 } from "../../../library/playerKeys.js"
 import { resumeSeconds } from "../../../library/playerPlayback.js"
@@ -194,6 +195,20 @@ export function Player({
       if (!el) return
       el.muted = !el.muted
       setMuted(el.muted)
+    } else if (action === "volumeUp" || action === "volumeDown") {
+      if (!el) return
+      if (el.muted && action === "volumeUp") {
+        el.muted = false
+        if (el.volume === 0) el.volume = steppedVolume(0, 1)
+        setMuted(false)
+        setVolume(el.volume)
+      } else {
+        const next = steppedVolume(el.muted ? 0 : el.volume, action === "volumeUp" ? 1 : -1)
+        el.muted = next === 0
+        if (next > 0) el.volume = next
+        setVolume(next)
+        setMuted(next === 0)
+      }
     } else if (action === "nextVideo") void skipOrReplay(onNext)
     else if (action === "previousVideo") void skipOrReplay(onPrevious)
   }
@@ -281,7 +296,14 @@ export function Player({
       ) : null}
 
       {!playError ? (
-        <PlayOverlay label={t(lang, "play")} playing={playing} onPlay={() => void togglePlay()} />
+        <PlayOverlay
+          lang={lang}
+          playing={playing}
+          visible={showChrome || !playing}
+          onTogglePlay={() => void togglePlay()}
+          onSeekBack={() => seekTo((videoRef.current?.currentTime ?? currentTime) - 5)}
+          onSeekForward={() => seekTo((videoRef.current?.currentTime ?? currentTime) + 5)}
+        />
       ) : null}
 
       <Controls

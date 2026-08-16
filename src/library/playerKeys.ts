@@ -7,6 +7,8 @@ export type PlayerKeyAction =
   | "toggleCaptions"
   | "toggleFullscreen"
   | "toggleMute"
+  | "volumeUp"
+  | "volumeDown"
   | "nextVideo"
   | "previousVideo"
 
@@ -66,6 +68,8 @@ export function playerShortcutFromInput(input: PlayerKeyInput): PlayerKeyAction 
   if (letter("KeyJ", "j") || input.code === "ArrowLeft" || key === "ArrowLeft") {
     return "seekBack"
   }
+  if (input.code === "ArrowUp" || key === "ArrowUp") return "volumeUp"
+  if (input.code === "ArrowDown" || key === "ArrowDown") return "volumeDown"
   if (letter("KeyC", "c")) return input.repeat ? null : "toggleCaptions"
   if (letter("KeyF", "f")) return input.repeat ? null : "toggleFullscreen"
   if (letter("KeyM", "m")) return input.repeat ? null : "toggleMute"
@@ -104,4 +108,9 @@ export function steppedSpeed(current: number, delta: 1 | -1, speeds: readonly nu
     return speeds[Math.min(speeds.length - 1, Math.max(0, nearest + delta))] ?? current
   }
   return speeds[Math.min(speeds.length - 1, Math.max(0, index + delta))] ?? current
+}
+
+export function steppedVolume(current: number, delta: 1 | -1, step = 0.05): number {
+  const next = Math.round(current / step + delta) * step
+  return Math.min(1, Math.max(0, next))
 }

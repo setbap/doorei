@@ -2,7 +2,8 @@ import { describe, expect, test } from "vitest"
 import {
   playerShortcutBlocked,
   playerShortcutFromInput,
-  steppedSpeed
+  steppedSpeed,
+  steppedVolume
 } from "../../src/library/playerKeys.js"
 
 const base = {
@@ -39,6 +40,13 @@ describe("playerShortcutFromInput", () => {
     expect(playerShortcutFromInput({ ...base, key: "j", code: "KeyJ" })).toBe("seekBack")
     expect(playerShortcutFromInput({ ...base, key: "ت", code: "KeyJ" })).toBe("seekBack")
     expect(playerShortcutFromInput({ ...base, key: "ArrowLeft", code: "ArrowLeft" })).toBe("seekBack")
+  })
+
+  test("ArrowUp raises volume; ArrowDown lowers volume", () => {
+    expect(playerShortcutFromInput({ ...base, key: "ArrowUp", code: "ArrowUp" })).toBe("volumeUp")
+    expect(playerShortcutFromInput({ ...base, key: "ArrowDown", code: "ArrowDown" })).toBe(
+      "volumeDown"
+    )
   })
 
   test("c shows or hides Captions", () => {
@@ -90,5 +98,14 @@ describe("steppedSpeed", () => {
     expect(steppedSpeed(1, -1, speeds)).toBe(0.75)
     expect(steppedSpeed(2, 1, speeds)).toBe(2)
     expect(steppedSpeed(0.5, -1, speeds)).toBe(0.5)
+  })
+})
+
+describe("steppedVolume", () => {
+  test("steps by five percent and stays between 0 and 1", () => {
+    expect(steppedVolume(0.5, 1)).toBe(0.55)
+    expect(steppedVolume(0.5, -1)).toBe(0.45)
+    expect(steppedVolume(1, 1)).toBe(1)
+    expect(steppedVolume(0, -1)).toBe(0)
   })
 })

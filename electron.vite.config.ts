@@ -26,6 +26,13 @@ export default defineConfig({
         "@": resolve("src/renderer/src")
       }
     },
-    plugins: [react(), tailwindcss()]
+    plugins: [
+      react({
+        babel: {
+          plugins: [["babel-plugin-react-compiler", { panicThreshold: "none" }]]
+        }
+      }),
+      tailwindcss()
+    ]
   }
 })
