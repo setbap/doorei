@@ -77,9 +77,9 @@ describe("playback position, watched, and next Video", () => {
     expect(library.snapshot().selectedVideoId).toBe(c)
   })
 
-  test("autoplay and confetti default off and speed is remembered", async () => {
+  test("autoplay defaults on and confetti defaults off and speed is remembered", async () => {
     const { library } = await threeVideos()
-    expect(library.snapshot().settings.autoplay).toBe(false)
+    expect(library.snapshot().settings.autoplay).toBe(true)
     expect(library.snapshot().settings.confetti).toBe(false)
     expect(library.snapshot().settings.playbackSpeed).toBe(1)
     expect(library.snapshot().settings.captionColor).toBe("#ffffff")

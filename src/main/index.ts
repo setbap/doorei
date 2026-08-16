@@ -81,6 +81,7 @@ function createMainWindow(): void {
       contextIsolation: true,
       sandbox: false,
       spellcheck: true,
+      autoplayPolicy: "no-user-gesture-required",
       zoomFactor: 1
     }
   })

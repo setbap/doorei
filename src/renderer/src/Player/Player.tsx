@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react"
+import { resumeSeconds } from "../../../library/playerPlayback.js"
 import type { AppLanguage, CaptionSegment } from "../../../library/types.js"
 import { t } from "../uiText"
 import { CaptionOverlay } from "./CaptionOverlay"
@@ -209,6 +210,7 @@ export function Player({
         className="absolute inset-0 h-full w-full bg-black object-contain"
         src={src}
         playsInline
+        autoPlay={playAfterSelect}
         preload="auto"
         onClick={onVideoClick}
         onError={() => setPlayError(t(lang, "playError"))}
@@ -216,10 +218,11 @@ export function Player({
           const el = event.currentTarget
           setPlayError(null)
           setDuration(el.duration || 0)
-          if (!appliedStart.current && startSeconds > 0) {
-            el.currentTime = startSeconds
-            appliedStart.current = true
+          const start = resumeSeconds(startSeconds, el.duration || 0)
+          if (!appliedStart.current && start > 0) {
+            el.currentTime = start
           }
+          appliedStart.current = true
           el.playbackRate = playbackSpeed
           el.volume = volume
           setCurrentTime(el.currentTime)

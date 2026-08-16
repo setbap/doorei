@@ -12,7 +12,7 @@ export const LEGACY_IMPROVE_PROMPT =
   "Rewrite this Caption with corrected wording. Keep the same timestamps and the same Spoken language. Fix technical terms. Return only a JSON array of {startSeconds, endSeconds, text}."
 
 export const DEFAULT_SETTINGS: PlayerSettings = {
-  autoplay: false,
+  autoplay: true,
   confetti: false,
   playbackSpeed: 1,
   subtitlesVisible: true,

@@ -7,6 +7,7 @@ import {
   X
 } from "lucide-react"
 import { usePanelRef } from "react-resizable-panels"
+import { playAfterMediaReady } from "../../../library/playerPlayback.js"
 import type { AppLanguage, LibrarySnapshot, SearchScope, SpokenLanguage } from "../../../library/types.js"
 import { Button } from "@/components/ui/button"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
@@ -15,6 +16,7 @@ import { SettingsDialog } from "../SettingsDialog"
 import { ToolPane } from "../ToolPane"
 import { t } from "../uiText"
 import { LibraryAside } from "./LibraryAside"
+import { CourseProgress } from "./CourseProgress"
 import { loadComposerOpen, loadShellLayout, saveComposerOpen, saveShellLayout } from "./layout"
 import { PlayerStage } from "./PlayerStage"
 import type { PromptState } from "./prompt"
@@ -34,7 +36,7 @@ export function Shell({ snapshot }: Props) {
   const [scope, setScope] = useState<SearchScope>("video")
   const [note, setNote] = useState("")
   const [stampOn, setStampOn] = useState(true)
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null)
+  const [media, setMedia] = useState<{ id: string; url: string } | null>(null)
   const [prompt, setPrompt] = useState<PromptState>(null)
   const [sessionDate, setSessionDate] = useState("")
   const [spoken, setSpoken] = useState<SpokenLanguage>(snapshot.spokenLanguageDefault)
@@ -70,10 +72,17 @@ export function Shell({ snapshot }: Props) {
 
   useEffect(() => {
     if (!selected || selected.fileMissing) {
-      setMediaUrl(null)
+      setMedia(null)
       return
     }
-    void window.doorei.mediaUrl(selected.path).then(setMediaUrl)
+    const id = selected.id
+    let cancelled = false
+    void window.doorei.mediaUrl(selected.path).then((url) => {
+      if (!cancelled) setMedia({ id, url })
+    })
+    return () => {
+      cancelled = true
+    }
   }, [selected?.id, selected?.path, selected?.fileMissing])
 
   const caption = snapshot.improvedCaption ?? snapshot.caption
@@ -202,10 +211,18 @@ export function Shell({ snapshot }: Props) {
               snapshot={snapshot}
               lang={lang}
               selected={selected}
-              mediaUrl={mediaUrl}
+              mediaUrl={media?.url ?? null}
               caption={caption}
               videoRef={videoRef}
-              playAfterSelect={playAfterSelectId.current === selected?.id}
+              playAfterSelect={
+                selected
+                  ? playAfterMediaReady({
+                      selectedId: selected.id,
+                      mediaId: media?.id ?? null,
+                      playAfterId: playAfterSelectId.current
+                    })
+                  : false
+              }
               composerOpen={composerOpen}
               note={note}
               setNote={setNote}
@@ -252,7 +269,7 @@ export function Shell({ snapshot }: Props) {
           </ResizablePanel>
         </ResizablePanelGroup>
         <footer className="flex items-center justify-between border-t border-white/10 bg-black/50 px-4 py-1 text-xs text-muted-foreground backdrop-blur-xl backdrop-saturate-150">
-          <span>{snapshot.selectedCourseName ?? t(lang, "appName")}</span>
+          <CourseProgress snapshot={snapshot} />
           <span
             className="flex min-w-0 flex-1 items-center justify-center gap-1 px-3"
             title={jobs.length ? jobStatusLine(snapshot, jobs) : undefined}

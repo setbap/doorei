@@ -46,7 +46,6 @@ export function PlayerStage({
       <div className="relative min-h-0 flex-1 bg-black">
         {selected && mediaUrl && !selected.fileMissing ? (
           <Player
-            key={selected.id}
             videoRef={videoRef}
             src={mediaUrl}
             lang={lang}
@@ -66,9 +65,11 @@ export function PlayerStage({
               void window.doorei.call("setPlaybackPosition", time)
             }}
             onEnded={() => {
-              void window.doorei.call("markEnded")
-              if (snapshot.settings.confetti) fireConfetti()
-              if (snapshot.settings.autoplay) void selectAndPlay("nextVideoId")
+              void (async () => {
+                await window.doorei.call("markEnded")
+                if (snapshot.settings.confetti) fireConfetti()
+                await selectAndPlay("nextVideoId")
+              })()
             }}
             onPlaybackSpeedChange={(speed) => {
               void window.doorei.call("updateSettings", {
