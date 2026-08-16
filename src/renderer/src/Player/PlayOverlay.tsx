@@ -1,4 +1,5 @@
 import { Pause, Play } from "lucide-react";
+import type { ReactNode } from "react";
 import type { AppLanguage } from "../../../library/types.js";
 import { cn } from "@/lib/utils";
 import { t } from "../uiText";
@@ -32,7 +33,7 @@ export function PlayOverlay({
         enabled={visible}
         onClick={onSeekBack}
       >
-        <div className="text-sm me-1 h-full rounded-full w-full flex items-center justify-center font-medium tabular-nums text-white">
+        <div className="flex h-[90%] w-[90%] items-center justify-center text-xs font-medium tabular-nums text-white">
           −5
         </div>
       </SkipCircle>
@@ -49,18 +50,16 @@ export function PlayOverlay({
           onTogglePlay();
         }}
       >
-        {playing ? (
-          <Pause className="size-7" />
-        ) : (
-          <Play className="ms-0.5 size-7" />
-        )}
+        <span className="grid size-[90%] place-items-center">
+          {playing ? <Pause className="size-6" /> : <Play className="ms-0.5 size-6" />}
+        </span>
       </button>
       <SkipCircle
         label={t(lang, "seekForward")}
         enabled={visible}
         onClick={onSeekForward}
       >
-        <div className="text-sm me-1 h-full rounded-full w-full flex items-center justify-center font-medium tabular-nums text-white">
+        <div className="flex h-[90%] w-[90%] items-center justify-center text-xs font-medium tabular-nums text-white">
           +5
         </div>
       </SkipCircle>
@@ -77,13 +76,13 @@ function SkipCircle({
   label: string;
   enabled: boolean;
   onClick: () => void;
-  children: string;
+  children: ReactNode;
 }) {
   return (
     <button
       type="button"
       className={cn(
-        "grid size-12 place-items-center rounded-full bg-white/12 text-sm font-medium tabular-nums text-white ring-1 ring-white/20 backdrop-blur-md",
+        "grid size-12 place-items-center rounded-full bg-white/12 text-xs font-medium tabular-nums text-white ring-1 ring-white/20 backdrop-blur-md",
         enabled ? "pointer-events-auto" : "pointer-events-none"
       )}
       tabIndex={enabled ? 0 : -1}

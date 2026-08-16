@@ -8,6 +8,8 @@ import {
 } from "../../../library/playerKeys.js"
 import { resumeSeconds } from "../../../library/playerPlayback.js"
 import type { AppLanguage, CaptionSegment } from "../../../library/types.js"
+import { textDirection } from "../../../library/textDirection.js"
+import { cn } from "@/lib/utils"
 import { t } from "../uiText"
 import { CaptionOverlay } from "./CaptionOverlay"
 import { Controls } from "./Controls"
@@ -27,6 +29,7 @@ type Props = {
   segments: CaptionSegment[]
   watched: boolean
   playAfterSelect: boolean
+  title: string
   onTimeUpdate: (seconds: number) => void
   onEnded: () => void
   onPrevious: () => Promise<boolean>
@@ -49,6 +52,7 @@ export function Player({
   segments,
   watched,
   playAfterSelect,
+  title,
   onTimeUpdate,
   onEnded,
   onPrevious,
@@ -285,6 +289,21 @@ export function Player({
           {playError}
         </div>
       ) : null}
+
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/50 via-black/18 to-transparent px-4 pt-3 pb-24 transition-opacity duration-200",
+          showChrome ? "opacity-100" : "opacity-0"
+        )}
+      >
+        <p
+          className="truncate text-center text-sm font-medium text-white/90"
+          dir={textDirection(title)}
+          title={title}
+        >
+          {title}
+        </p>
+      </div>
 
       {subtitlesVisible && captionText ? (
         <CaptionOverlay

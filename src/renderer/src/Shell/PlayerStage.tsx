@@ -57,6 +57,7 @@ export function PlayerStage({
             segments={caption?.segments ?? []}
             watched={selected.watched}
             playAfterSelect={playAfterSelect}
+            title={selected.name}
             onTimeUpdate={(time) => {
               setPlaybackTime(time)
               const now = Date.now()

@@ -86,7 +86,7 @@ export function Controls({
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-3 pt-10 pb-3 transition-opacity duration-200",
+        "pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/50 via-black/18 to-transparent px-3 pt-24 pb-3 transition-opacity duration-200",
         visible ? "opacity-100" : "opacity-0"
       )}
     >
