@@ -6,7 +6,7 @@ export {
   destFilesForModel,
   hubUrlForModel
 } from "./models.js"
-export { createLibrary } from "./createLibrary.js"
+export { createLibrary } from "./createLibrary/index.js"
 export {
   providerByKindFromVault,
   providerConfigFromFields,

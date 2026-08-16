@@ -1,0 +1,64 @@
+import type {
+  Activity,
+  AppLanguage,
+  Caption,
+  ConversationRecord,
+  ConversationTurn,
+  Hit,
+  Job,
+  Note,
+  PlayerSettings,
+  ProviderConfig,
+  ProviderVault,
+  SpokenLanguage,
+  VideoRecord
+} from "../types.js"
+
+export type StoredConversation = ConversationRecord & {
+  courseId: string
+  updatedAt: number
+  turns: ConversationTurn[]
+}
+
+export type EmbeddingRow = {
+  segmentIndex: number
+  vector: number[]
+  kind: "caption" | "note"
+  noteId?: string
+}
+
+export type LibraryState = {
+  appLanguage: AppLanguage | null
+  outputLanguage: AppLanguage | null
+  provider: ProviderConfig | null
+  providerVault: ProviderVault
+  spokenLanguageDefault: SpokenLanguage
+  settings: PlayerSettings
+  prompts: { improve: string; summary: string; ask: string }
+  selectedCourseId: string | null
+  selectedVideoId: string | null
+  activity: Activity
+  gatePassed: boolean
+  courses: { id: string; name: string }[]
+  sessions: { id: string; courseId: string; name: string; date: string | null; position: number }[]
+  videos: VideoRecord[]
+  notes: Note[]
+  captions: Record<string, Caption>
+  improvedCaptions: Record<string, Caption>
+  summaries: Record<string, string>
+  embeddings: Record<string, EmbeddingRow[]>
+  jobs: Job[]
+  searchHits: Hit[]
+  conversations: StoredConversation[]
+  activeConversationByCourse: Record<string, string>
+  lastAskError: string | null
+}
+
+export type PersistHint =
+  | { kind: "library" }
+  | { kind: "app" }
+  | { kind: "course"; courseId: string }
+  | { kind: "playback"; videoId: string }
+  | { kind: "ask"; courseId: string }
+  | { kind: "captioning"; videoId: string }
+  | { kind: "embeddings"; courseId: string; videoId: string }
