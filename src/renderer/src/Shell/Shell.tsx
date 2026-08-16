@@ -275,7 +275,7 @@ export function Shell({ snapshot }: Props) {
             title={jobs.length ? jobStatusLine(snapshot, jobs) : undefined}
           >
             <span className="min-w-0 truncate text-center">
-              {jobs.length ? jobStatusLine(snapshot, jobs) : t(lang, "jobs")}
+              {jobs.length ? jobStatusLine(snapshot, jobs) : null}
             </span>
             {failedJobs.length > 0 && !busyJobs ? (
               <Button
@@ -292,7 +292,7 @@ export function Shell({ snapshot }: Props) {
           </span>
           <span>
             {snapshot.providerConfigured
-              ? `${t(lang, "providerOn")} ${providerKindLabel(snapshot.provider?.kind)}`
+              ? `${t(lang, "providerOn")}: ${providerKindLabel(snapshot.provider?.kind)}`
               : t(lang, "providerOff")}
           </span>
         </footer>
