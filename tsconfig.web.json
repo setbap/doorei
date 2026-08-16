@@ -32,6 +32,7 @@
     "src/library/hitLinks.ts",
     "src/library/markdownTables.ts",
     "src/library/playerPlayback.ts",
+    "src/library/playerKeys.ts",
     "src/library/courseProgress.ts",
     "src/main/selectAll.ts"
   ]

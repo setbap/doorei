@@ -1,9 +1,16 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react"
+import { useEffect, useRef, useState, type RefObject } from "react"
+import {
+  playerShortcutBlocked,
+  playerShortcutFromInput,
+  steppedSpeed,
+  type PlayerKeyTarget
+} from "../../../library/playerKeys.js"
 import { resumeSeconds } from "../../../library/playerPlayback.js"
 import type { AppLanguage, CaptionSegment } from "../../../library/types.js"
 import { t } from "../uiText"
 import { CaptionOverlay } from "./CaptionOverlay"
 import { Controls } from "./Controls"
+import { SPEEDS } from "./constants"
 import { activeCaption } from "./format"
 import { PlayOverlay } from "./PlayOverlay"
 
@@ -158,37 +165,46 @@ export function Player({
     await skipOrReplay(onNext)
   }
 
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    if (event.target instanceof HTMLInputElement) return
-    if (event.code === "Space" || event.key === "k") {
-      event.preventDefault()
-      void togglePlay()
-    } else if (event.key === "ArrowRight") {
-      event.preventDefault()
-      seekTo(currentTime + 5)
-    } else if (event.key === "ArrowLeft") {
-      event.preventDefault()
-      seekTo(currentTime - 5)
-    } else if (event.key === "f") {
-      event.preventDefault()
-      void toggleFullscreen()
-    } else if (event.key === "m") {
-      event.preventDefault()
-      const el = videoRef.current
+  const onWindowKey = useRef<(event: KeyboardEvent) => void>(() => undefined)
+  onWindowKey.current = (event: KeyboardEvent): void => {
+    if (event.defaultPrevented || event.isComposing) return
+    if (hasBlockingPlayerKeyTarget(event.target, rootRef.current)) return
+    const action = playerShortcutFromInput({
+      key: event.key,
+      code: event.code,
+      meta: event.metaKey,
+      control: event.ctrlKey,
+      alt: event.altKey,
+      shift: event.shiftKey,
+      repeat: event.repeat
+    })
+    if (!action) return
+    event.preventDefault()
+    bumpControls()
+    const el = videoRef.current
+    const time = el?.currentTime ?? currentTime
+    if (action === "playPause") void togglePlay()
+    else if (action === "speedUp") onPlaybackSpeedChange(steppedSpeed(playbackSpeed, 1, SPEEDS))
+    else if (action === "speedDown") onPlaybackSpeedChange(steppedSpeed(playbackSpeed, -1, SPEEDS))
+    else if (action === "seekForward") seekTo(time + 5)
+    else if (action === "seekBack") seekTo(time - 5)
+    else if (action === "toggleCaptions") onSubtitlesVisibleChange(!subtitlesVisible)
+    else if (action === "toggleFullscreen") void toggleFullscreen()
+    else if (action === "toggleMute") {
       if (!el) return
       el.muted = !el.muted
       setMuted(el.muted)
-    } else if (event.key === "c") {
-      event.preventDefault()
-      onSubtitlesVisibleChange(!subtitlesVisible)
-    } else if (event.key === "N") {
-      event.preventDefault()
-      void skipOrReplay(onNext)
-    } else if (event.key === "P") {
-      event.preventDefault()
-      void skipOrReplay(onPrevious)
-    }
+    } else if (action === "nextVideo") void skipOrReplay(onNext)
+    else if (action === "previousVideo") void skipOrReplay(onPrevious)
   }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      onWindowKey.current(event)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [])
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
   const volumeValue = muted ? 0 : volume
@@ -203,7 +219,6 @@ export function Player({
       onMouseLeave={() => {
         if (playing && !speedOpen && !styleOpen) setControlsOn(false)
       }}
-      onKeyDown={onKeyDown}
     >
       <video
         ref={videoRef}
@@ -306,4 +321,24 @@ export function Player({
       />
     </div>
   )
+}
+
+function hasBlockingPlayerKeyTarget(
+  target: EventTarget | null,
+  playerRoot: HTMLElement | null
+): boolean {
+  if (!(target instanceof Element)) return false
+  const insidePlayer = Boolean(playerRoot?.contains(target))
+  let el: Element | null = target
+  while (el && el !== playerRoot) {
+    const snapshot: PlayerKeyTarget = {
+      tagName: el.tagName,
+      type: el instanceof HTMLInputElement ? el.type : undefined,
+      isContentEditable: el instanceof HTMLElement && el.isContentEditable,
+      role: el.getAttribute("role")
+    }
+    if (playerShortcutBlocked(snapshot, insidePlayer ? "player" : "app")) return true
+    el = el.parentElement
+  }
+  return false
 }
