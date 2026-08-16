@@ -1,4 +1,6 @@
 import { Menu, app, type BrowserWindow, type MenuItemConstructorOptions } from "electron"
+import { chromeKeyAction, shouldBlockChromeKey } from "./chromeKeys.js"
+import { editMenuTemplate } from "./installDesktopChrome.js"
 import { shortcutFromInput, type ShortcutId } from "./shortcuts.js"
 
 export function installShortcuts(
@@ -6,54 +8,62 @@ export function installShortcuts(
   send: (id: ShortcutId) => void
 ): void {
   window.webContents.on("before-input-event", (event, input) => {
+    const chrome = chromeKeyAction(input)
+    if (chrome && shouldBlockChromeKey(chrome, app.isPackaged)) {
+      event.preventDefault()
+      return
+    }
     const action = shortcutFromInput(input)
     if (!action) return
     event.preventDefault()
     send(action)
   })
-  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(send)))
+  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(window, send)))
 }
 
-function appMenuTemplate(send: (id: ShortcutId) => void): MenuItemConstructorOptions[] {
+function appMenuTemplate(
+  window: BrowserWindow,
+  send: (id: ShortcutId) => void
+): MenuItemConstructorOptions[] {
   const settingsItem: MenuItemConstructorOptions = {
     label: "Settings",
     accelerator: "CommandOrControl+,",
     click: () => send("openSettings")
   }
-  const viewMenu: MenuItemConstructorOptions = {
-    label: "View",
-    submenu: [
-      {
-        label: "Actions",
-        accelerator: "CommandOrControl+P",
-        click: () => send("toggleActionPanel")
-      },
-      {
-        label: "Toggle Library",
-        accelerator: "CommandOrControl+B",
-        click: () => send("toggleLibrary")
-      },
-      {
-        label: "Toggle Tools",
-        accelerator: "CommandOrControl+J",
-        click: () => send("toggleToolPane")
-      },
-      {
-        label: "Toggle Note",
-        accelerator: "CommandOrControl+`",
-        click: () => send("toggleNote")
-      },
+  const viewItems: MenuItemConstructorOptions[] = [
+    {
+      label: "Actions",
+      accelerator: "CommandOrControl+P",
+      click: () => send("toggleActionPanel")
+    },
+    {
+      label: "Toggle Library",
+      accelerator: "CommandOrControl+B",
+      click: () => send("toggleLibrary")
+    },
+    {
+      label: "Toggle Tools",
+      accelerator: "CommandOrControl+J",
+      click: () => send("toggleToolPane")
+    },
+    {
+      label: "Toggle Note",
+      accelerator: "CommandOrControl+`",
+      click: () => send("toggleNote")
+    }
+  ]
+  if (!app.isPackaged) {
+    viewItems.push(
       { type: "separator" },
       { role: "reload" },
       { role: "forceReload" },
-      { role: "toggleDevTools" },
-      { type: "separator" },
-      { role: "resetZoom" },
-      { role: "zoomIn" },
-      { role: "zoomOut" },
-      { type: "separator" },
-      { role: "togglefullscreen" }
-    ]
+      { role: "toggleDevTools" }
+    )
+  }
+  viewItems.push({ type: "separator" }, { role: "togglefullscreen" })
+  const viewMenu: MenuItemConstructorOptions = {
+    label: "View",
+    submenu: viewItems
   }
   if (process.platform === "darwin") {
     return [
@@ -73,7 +83,7 @@ function appMenuTemplate(send: (id: ShortcutId) => void): MenuItemConstructorOpt
           { role: "quit" }
         ]
       },
-      { role: "editMenu" },
+      editMenuTemplate(window),
       viewMenu,
       { role: "windowMenu" }
     ]
@@ -83,7 +93,7 @@ function appMenuTemplate(send: (id: ShortcutId) => void): MenuItemConstructorOpt
       label: "File",
       submenu: [settingsItem, { type: "separator" }, { role: "quit" }]
     },
-    { role: "editMenu" },
+    editMenuTemplate(window),
     viewMenu,
     { role: "windowMenu" }
   ]

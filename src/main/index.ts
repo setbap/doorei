@@ -1,8 +1,10 @@
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, protocol, shell } from "electron"
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, protocol, shell } from "electron"
+import { applyAppIdentity, migrateUnpackagedLibrary } from "./appIdentity.js"
 import { mediaResponse, toMediaUrl } from "./mediaProtocol.js"
 import { startMediaServer } from "./mediaServer.js"
+import { installDesktopChrome } from "./installDesktopChrome.js"
 import { installShortcuts } from "./installShortcuts.js"
 import type { ShortcutId } from "./shortcuts.js"
 import { createLibrary, type Library, type LibrarySnapshot } from "../library/index.js"
@@ -11,6 +13,9 @@ import { createNodeMedia, videoPathsInFolder } from "../adapters/media.js"
 import { createSpeechRecognizer } from "../adapters/speech.js"
 import { createEmbedder } from "../adapters/embedder.js"
 import { createProviderClient } from "../adapters/provider.js"
+
+applyAppIdentity(app)
+app.commandLine.appendSwitch("disable-pinch")
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -42,15 +47,29 @@ function dataPaths() {
   }
 }
 
+function appIconPath(): string {
+  if (app.isPackaged) return join(process.resourcesPath, "icon.png")
+  return join(__dirname, "../../build/icon.png")
+}
+
+function applyDockIcon(): void {
+  if (process.platform !== "darwin") return
+  const image = nativeImage.createFromPath(appIconPath())
+  if (image.isEmpty()) return
+  app.dock?.setIcon(image)
+}
+
 function createMainWindow(): void {
   const isMac = process.platform === "darwin"
   nativeTheme.themeSource = "dark"
+  applyDockIcon()
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
     title: "Doorei",
+    icon: appIconPath(),
     show: false,
     backgroundColor: isMac ? "#00000000" : "#171717",
     vibrancy: isMac ? "under-window" : undefined,
@@ -60,18 +79,20 @@ function createMainWindow(): void {
     webPreferences: {
       preload: join(__dirname, "../preload/index.mjs"),
       contextIsolation: true,
-      sandbox: false
+      sandbox: false,
+      spellcheck: true,
+      zoomFactor: 1
     }
   })
 
+  installDesktopChrome(mainWindow)
   installShortcuts(mainWindow, (id: ShortcutId) => {
     mainWindow?.webContents.send("shortcut", id)
   })
 
-  mainWindow.on("ready-to-show", () => mainWindow?.show())
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    void shell.openExternal(details.url)
-    return { action: "deny" }
+  mainWindow.on("ready-to-show", () => {
+    applyDockIcon()
+    mainWindow?.show()
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -126,6 +147,8 @@ const LIBRARY_METHODS = new Set([
 ])
 
 app.whenReady().then(async () => {
+  applyDockIcon()
+  migrateUnpackagedLibrary(app)
   const media = await startMediaServer()
   protocol.handle("media", (request) => mediaResponse(request))
   const { dataDir, modelsRoot } = dataPaths()

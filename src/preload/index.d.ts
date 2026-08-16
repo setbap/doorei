@@ -23,6 +23,7 @@ declare global {
             | "toggleNote"
         ) => void
       ) => () => void
+      onSelectAll: (listener: () => void) => () => void
     }
   }
 }

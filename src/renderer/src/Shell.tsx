@@ -221,10 +221,10 @@ export function Shell({ snapshot }: Props) {
         <header
           className={cn(
             "titlebar relative flex h-11 shrink-0 items-center justify-between border-b border-white/10 bg-black/50 pe-2 backdrop-blur-xl backdrop-saturate-150",
-            nativeGlass ? "pl-[76px]" : "ps-2"
+            nativeGlass ? "pl-22" : "ps-2"
           )}
         >
-          <span className="titlebar-control">
+          <span className="pt-1 titlebar-control">
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -248,7 +248,7 @@ export function Shell({ snapshot }: Props) {
               </TooltipContent>
             </Tooltip>
           </span>
-          <span className="titlebar-control absolute start-1/2 top-1/2 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2">
+          <span className="titlebar-control absolute inset-s-1/2 top-1/2 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2">
             <CourseCommand
               snapshot={snapshot}
               lang={lang}
@@ -582,7 +582,9 @@ export function Shell({ snapshot }: Props) {
           </span>
           <span>
             {snapshot.providerConfigured
-              ? `${t(lang, "providerOn")} ${providerKindLabel(snapshot.provider?.kind)}`
+              ? `${t(lang, "providerOn")} ${providerKindLabel(
+                  snapshot.provider?.kind
+                )}`
               : t(lang, "providerOff")}
           </span>
         </footer>
@@ -795,8 +797,8 @@ const COMPOSER_OPEN_KEY = "doorei.composer-open";
 const DEFAULT_SHELL_LAYOUT = { library: 22, player: 53, tools: 25 };
 
 function providerKindLabel(kind: string | undefined): string {
-  if (!kind) return ""
-  return kind.charAt(0).toUpperCase() + kind.slice(1)
+  if (!kind) return "";
+  return kind.charAt(0).toUpperCase() + kind.slice(1);
 }
 
 function jobStatusLine(snapshot: LibrarySnapshot, jobs: Job[]): string {

@@ -30,6 +30,7 @@
     "src/library/providerConfig.ts",
     "src/library/textDirection.ts",
     "src/library/hitLinks.ts",
-    "src/library/markdownTables.ts"
+    "src/library/markdownTables.ts",
+    "src/main/selectAll.ts"
   ]
 }

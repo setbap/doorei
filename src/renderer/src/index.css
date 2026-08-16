@@ -200,6 +200,21 @@
     margin: 0;
     overflow: hidden;
     background: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"],
+  [data-selectable] {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  img,
+  a {
+    -webkit-user-drag: none;
   }
 
   body {

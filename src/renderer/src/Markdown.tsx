@@ -16,7 +16,7 @@ export function Markdown({
   onHit?: (videoId: string, seconds: number) => void
 }) {
   return (
-    <div className="summary-markdown text-sm leading-6" dir={textDirection(text)}>
+    <div className="summary-markdown text-sm leading-6" data-selectable dir={textDirection(text)}>
       <MarkdownImpl
         remarkPlugins={[remarkGfm]}
         urlTransform={(url) => url}

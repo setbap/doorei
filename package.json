@@ -1,5 +1,6 @@
 {
   "name": "doorei",
+  "productName": "Doorei",
   "version": "0.1.0",
   "private": true,
   "description": "A personal recall library for downloaded video courses",
@@ -14,7 +15,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "fetch-models": "node --experimental-strip-types scripts/fetch-models.ts",
     "package": "pnpm fetch-models && pnpm build && electron-builder",
-    "postinstall": "node node_modules/electron/install.js"
+    "postinstall": "node node_modules/electron/install.js && node --experimental-strip-types scripts/brand-dev-electron.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -47,15 +48,22 @@
       {
         "from": "resources/models",
         "to": "models"
+      },
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
       }
     ],
     "mac": {
+      "icon": "build/icon.icns",
       "target": "dmg"
     },
     "linux": {
+      "icon": "build/icons",
       "target": "AppImage"
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": "nsis"
     }
   },

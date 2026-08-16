@@ -22,6 +22,11 @@ const api = {
     const handler = (_event: unknown, action: ShortcutId) => listener(action)
     ipcRenderer.on("shortcut", handler)
     return () => ipcRenderer.removeListener("shortcut", handler)
+  },
+  onSelectAll: (listener: () => void): (() => void) => {
+    const handler = () => listener()
+    ipcRenderer.on("edit:selectAll", handler)
+    return () => ipcRenderer.removeListener("edit:selectAll", handler)
   }
 }
 

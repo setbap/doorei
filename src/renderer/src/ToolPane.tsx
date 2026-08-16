@@ -200,7 +200,7 @@ export function ToolPane({
                         {Math.floor(item.timestampSeconds)}s
                       </Button>
                     ) : null}
-                    <p className="text-sm" dir={textDirection(item.text)}>
+                    <p className="text-sm" data-selectable dir={textDirection(item.text)}>
                       {item.text}
                     </p>
                     <Button
@@ -466,7 +466,7 @@ function CaptionList({
 
   return (
     <ScrollArea className="min-h-0 flex-1">
-      <ul className="space-y-0.5 pb-2">
+      <ul className="space-y-0.5 pb-2" data-selectable>
         {segments.map((segment, index) => {
           const active = index === activeIndex;
           return (
