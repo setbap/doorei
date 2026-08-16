@@ -1,12 +1,16 @@
-import type { ComponentType, Dispatch, SetStateAction } from "react"
-import type { AppLanguage, LibrarySnapshot } from "../../../library/types.js"
-import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { CourseCommand } from "../CourseCommand"
-import { cn } from "@/lib/utils"
-import { t } from "../uiText"
-import { saveComposerOpen } from "./layout"
-import type { PromptState } from "./prompt"
+import type { ComponentType, Dispatch, SetStateAction } from "react";
+import type { AppLanguage, LibrarySnapshot } from "../../../library/types.js";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { CourseCommand } from "../CourseCommand";
+import { cn } from "@/lib/utils";
+import { t } from "../uiText";
+import { saveComposerOpen } from "./layout";
+import type { PromptState } from "./prompt";
 
 export function Titlebar({
   snapshot,
@@ -22,22 +26,22 @@ export function Titlebar({
   toggleTools,
   setPrompt,
   LibraryToggleIcon,
-  ToolsToggleIcon
+  ToolsToggleIcon,
 }: {
-  snapshot: LibrarySnapshot
-  lang: AppLanguage
-  nativeGlass: boolean
-  libraryOpen: boolean
-  toolsOpen: boolean
-  actionPanelOpen: boolean
-  setActionPanelOpen: Dispatch<SetStateAction<boolean>>
-  setSettingsOpen: Dispatch<SetStateAction<boolean>>
-  setComposerOpen: Dispatch<SetStateAction<boolean>>
-  toggleLibrary: () => void
-  toggleTools: () => void
-  setPrompt: Dispatch<SetStateAction<PromptState>>
-  LibraryToggleIcon: ComponentType
-  ToolsToggleIcon: ComponentType
+  snapshot: LibrarySnapshot;
+  lang: AppLanguage;
+  nativeGlass: boolean;
+  libraryOpen: boolean;
+  toolsOpen: boolean;
+  actionPanelOpen: boolean;
+  setActionPanelOpen: Dispatch<SetStateAction<boolean>>;
+  setSettingsOpen: Dispatch<SetStateAction<boolean>>;
+  setComposerOpen: Dispatch<SetStateAction<boolean>>;
+  toggleLibrary: () => void;
+  toggleTools: () => void;
+  setPrompt: Dispatch<SetStateAction<PromptState>>;
+  LibraryToggleIcon: ComponentType;
+  ToolsToggleIcon: ComponentType;
 }) {
   return (
     <header
@@ -55,7 +59,10 @@ export function Titlebar({
                 size="icon-sm"
                 className="text-muted-foreground"
                 aria-expanded={libraryOpen}
-                aria-label={t(lang, libraryOpen ? "hideLibrary" : "showLibrary")}
+                aria-label={t(
+                  lang,
+                  libraryOpen ? "hideLibrary" : "showLibrary"
+                )}
                 onClick={toggleLibrary}
               />
             }
@@ -67,7 +74,7 @@ export function Titlebar({
           </TooltipContent>
         </Tooltip>
       </span>
-      <span className="titlebar-control absolute inset-s-1/2 top-1/2 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2">
+      <span className="titlebar-control pt-1 absolute inset-s-1/2 top-1/2 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2">
         <CourseCommand
           snapshot={snapshot}
           lang={lang}
@@ -78,16 +85,16 @@ export function Titlebar({
           onOpenSettings={() => setSettingsOpen(true)}
           onToggleNote={() => {
             setComposerOpen((open) => {
-              const next = !open
-              saveComposerOpen(next)
-              return next
-            })
+              const next = !open;
+              saveComposerOpen(next);
+              return next;
+            });
           }}
           onToggleLibrary={toggleLibrary}
           onToggleToolPane={toggleTools}
         />
       </span>
-      <span className="titlebar-control">
+      <span className="titlebar-control pt-1 pe-2">
         <Tooltip>
           <TooltipTrigger
             render={
@@ -96,7 +103,10 @@ export function Titlebar({
                 size="icon-sm"
                 className="text-muted-foreground"
                 aria-expanded={toolsOpen}
-                aria-label={t(lang, toolsOpen ? "hideToolPane" : "showToolPane")}
+                aria-label={t(
+                  lang,
+                  toolsOpen ? "hideToolPane" : "showToolPane"
+                )}
                 onClick={toggleTools}
               />
             }
@@ -109,5 +119,5 @@ export function Titlebar({
         </Tooltip>
       </span>
     </header>
-  )
+  );
 }

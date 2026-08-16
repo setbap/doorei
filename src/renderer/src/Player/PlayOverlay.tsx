@@ -1,7 +1,7 @@
-import { Pause, Play } from "lucide-react"
-import type { AppLanguage } from "../../../library/types.js"
-import { cn } from "@/lib/utils"
-import { t } from "../uiText"
+import { Pause, Play } from "lucide-react";
+import type { AppLanguage } from "../../../library/types.js";
+import { cn } from "@/lib/utils";
+import { t } from "../uiText";
 
 export function PlayOverlay({
   lang,
@@ -9,14 +9,14 @@ export function PlayOverlay({
   visible,
   onTogglePlay,
   onSeekBack,
-  onSeekForward
+  onSeekForward,
 }: {
-  lang: AppLanguage
-  playing: boolean
-  visible: boolean
-  onTogglePlay: () => void
-  onSeekBack: () => void
-  onSeekForward: () => void
+  lang: AppLanguage;
+  playing: boolean;
+  visible: boolean;
+  onTogglePlay: () => void;
+  onSeekBack: () => void;
+  onSeekForward: () => void;
 }) {
   return (
     <div
@@ -32,7 +32,9 @@ export function PlayOverlay({
         enabled={visible}
         onClick={onSeekBack}
       >
-        −5
+        <div className="text-sm me-1 h-full rounded-full w-full flex items-center justify-center font-medium tabular-nums text-white">
+          −5
+        </div>
       </SkipCircle>
       <button
         type="button"
@@ -43,33 +45,39 @@ export function PlayOverlay({
         tabIndex={visible ? 0 : -1}
         aria-label={t(lang, playing ? "pause" : "play")}
         onClick={(event) => {
-          event.stopPropagation()
-          onTogglePlay()
+          event.stopPropagation();
+          onTogglePlay();
         }}
       >
-        {playing ? <Pause className="size-7" /> : <Play className="ms-0.5 size-7" />}
+        {playing ? (
+          <Pause className="size-7" />
+        ) : (
+          <Play className="ms-0.5 size-7" />
+        )}
       </button>
       <SkipCircle
         label={t(lang, "seekForward")}
         enabled={visible}
         onClick={onSeekForward}
       >
-        +5
+        <div className="text-sm me-1 h-full rounded-full w-full flex items-center justify-center font-medium tabular-nums text-white">
+          +5
+        </div>
       </SkipCircle>
     </div>
-  )
+  );
 }
 
 function SkipCircle({
   label,
   enabled,
   onClick,
-  children
+  children,
 }: {
-  label: string
-  enabled: boolean
-  onClick: () => void
-  children: string
+  label: string;
+  enabled: boolean;
+  onClick: () => void;
+  children: string;
 }) {
   return (
     <button
@@ -83,11 +91,11 @@ function SkipCircle({
       title={label}
       dir="ltr"
       onClick={(event) => {
-        event.stopPropagation()
-        onClick()
+        event.stopPropagation();
+        onClick();
       }}
     >
       {children}
     </button>
-  )
+  );
 }
