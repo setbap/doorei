@@ -31,6 +31,8 @@ describe("playback position, watched, and next Video", () => {
     await library.selectVideo(a)
     await library.setWatched(a, true)
     expect(library.snapshot().videos.find((item) => item.id === a)?.watched).toBe(true)
+    await library.setWatched(a, false)
+    expect(library.snapshot().videos.find((item) => item.id === a)?.watched).toBe(false)
 
     const { library: other, a: otherA } = await threeVideos()
     await other.selectVideo(otherA)

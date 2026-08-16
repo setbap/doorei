@@ -602,6 +602,11 @@ function VideoActionItems({
       >
         {t(lang, "watched")}
       </CheckboxItem>
+      {video.watched ? (
+        <Item onClick={() => void window.doorei.call("setWatched", video.id, false)}>
+          {t(lang, "unwatched")}
+        </Item>
+      ) : null}
       <Item
         onClick={() => {
           void window.doorei.call("selectVideo", video.id).then(() =>
