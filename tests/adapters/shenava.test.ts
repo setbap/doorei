@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, test } from "vitest"
@@ -12,6 +12,7 @@ import {
   decodeShenavaCtc,
   keepWindowCues,
   loadShenavaSidecars,
+  nativeFloat16Tensor,
   PcmWindowAssembler,
   runShenavaPcm,
   type ShenavaGraph
@@ -235,13 +236,22 @@ describe("Shenava sidecars", () => {
 })
 
 describe("Shenava ONNX graph", () => {
+  test("a float16 tensor exposes Uint16Array bits without Float16Array", () => {
+    const tensor = nativeFloat16Tensor(Float32Array.from([-10, 0, 1]), [3])
+    expect(tensor.type).toBe("float16")
+    expect(tensor.data).toBeInstanceOf(Uint16Array)
+    expect(tensor.data).toHaveLength(3)
+  })
+
   test("a full-window mel tensor infers token ids without a float16 buffer error", async () => {
     const modelDir = join(
       process.cwd(),
       "resources/models",
       "Reza2kn--Shenava-Koochik-v1.0-ONNX-fp16"
     )
-    if (!existsSync(modelDir)) return
+    const onnxReady =
+      existsSync(modelDir) && readdirSync(modelDir).some((name) => name.endsWith("_embedded.onnx"))
+    if (!onnxReady) return
     const graph = await createOnnxShenavaGraph(modelDir)
     const mel = new Float32Array(80 * 2005)
     mel.fill(-10)
