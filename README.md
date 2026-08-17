@@ -12,3 +12,12 @@ pnpm dev
 ```
 
 `pnpm fetch-models` writes only the allowlisted files into `resources/models` (gitignored). Electron Builder copies that folder to `extraResources`. Re-run it when `MODEL_PACK_VERSION` or the file list in `src/library/models.ts` changes.
+
+## Release
+
+Push a version tag to package macOS (dmg), Linux (AppImage), and Windows (nsis) installers and attach them to a GitHub Release:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
