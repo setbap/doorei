@@ -55,8 +55,14 @@
       }
     ],
     "mac": {
-      "icon": "build/icon.icns",
-      "target": "dmg"
+      "icon": "build/mac.png",
+      "target": "dmg",
+      "extraResources": [
+        {
+          "from": "build/mac.png",
+          "to": "mac.png"
+        }
+      ]
     },
     "linux": {
       "icon": "build/icons",

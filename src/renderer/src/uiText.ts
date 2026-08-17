@@ -169,7 +169,27 @@ const en: Dict = {
   commandActions: "Actions",
   toggleNote: "Toggle Note",
   toggleLibrary: "Toggle Library",
-  toggleToolPane: "Toggle Tools"
+  toggleToolPane: "Toggle Tools",
+  shortcuts: "Keyboard shortcuts",
+  shortcutsIntro: "Keys depend on where focus is.",
+  shortcutSectionApp: "App",
+  shortcutSectionAppWhen: "Anywhere in the Library.",
+  shortcutSectionPlayer: "Player",
+  shortcutSectionPlayerWhen:
+    "When a Video is selected, and focus is not in a field, checkbox, or a control outside the player.",
+  shortcutSectionTyping: "Search, Ask, and Notes",
+  shortcutSectionTypingWhen: "When typing in that field.",
+  shortcutOr: "or",
+  shortcutSend: "Send Ask or save a Note",
+  playPause: "Play or pause",
+  speedUp: "Faster",
+  speedDown: "Slower",
+  volumeUp: "Volume up",
+  volumeDown: "Volume down",
+  keySpace: "Space",
+  keyEnter: "Enter",
+  keyReturn: "Return",
+  keyShift: "Shift"
 }
 
 const fa: Dict = {
@@ -339,7 +359,27 @@ const fa: Dict = {
   commandActions: "دستورها",
   toggleNote: "نمایش یا پنهان کردن یادداشت",
   toggleLibrary: "نمایش یا پنهان کردن کتابخانه",
-  toggleToolPane: "نمایش یا پنهان کردن ابزارها"
+  toggleToolPane: "نمایش یا پنهان کردن ابزارها",
+  shortcuts: "میانبرهای صفحه‌کلید",
+  shortcutsIntro: "کلیدها به محل تمرکز بستگی دارند.",
+  shortcutSectionApp: "برنامه",
+  shortcutSectionAppWhen: "همه‌جا در کتابخانه.",
+  shortcutSectionPlayer: "پخش",
+  shortcutSectionPlayerWhen:
+    "وقتی ویدیویی انتخاب شده و تمرکز روی فیلد، چک‌باکس، یا کنترل بیرون پخش‌کننده نیست.",
+  shortcutSectionTyping: "جستجو، پرسش و یادداشت",
+  shortcutSectionTypingWhen: "وقتی در همان فیلد می‌نویسید.",
+  shortcutOr: "یا",
+  shortcutSend: "ارسال پرسش یا ذخیرهٔ یادداشت",
+  playPause: "پخش یا مکث",
+  speedUp: "سرعت بیشتر",
+  speedDown: "سرعت کمتر",
+  volumeUp: "صدای بیشتر",
+  volumeDown: "صدای کمتر",
+  keySpace: "فاصله",
+  keyEnter: "Enter",
+  keyReturn: "Return",
+  keyShift: "Shift"
 }
 
 export function t(language: AppLanguage | null, key: keyof typeof en): string {

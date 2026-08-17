@@ -48,8 +48,9 @@ function dataPaths() {
 }
 
 function appIconPath(): string {
-  if (app.isPackaged) return join(process.resourcesPath, "icon.png")
-  return join(__dirname, "../../build/icon.png")
+  const file = process.platform === "darwin" ? "mac.png" : "icon.png"
+  if (app.isPackaged) return join(process.resourcesPath, file)
+  return join(__dirname, `../../build/${file}`)
 }
 
 function applyDockIcon(): void {

@@ -71,7 +71,14 @@ export function playerShortcutFromInput(input: PlayerKeyInput): PlayerKeyAction 
   if (input.code === "ArrowUp" || key === "ArrowUp") return "volumeUp"
   if (input.code === "ArrowDown" || key === "ArrowDown") return "volumeDown"
   if (letter("KeyC", "c")) return input.repeat ? null : "toggleCaptions"
-  if (letter("KeyF", "f")) return input.repeat ? null : "toggleFullscreen"
+  if (
+    letter("KeyF", "f") ||
+    input.code === "Enter" ||
+    input.code === "NumpadEnter" ||
+    key === "Enter"
+  ) {
+    return input.repeat ? null : "toggleFullscreen"
+  }
   if (letter("KeyM", "m")) return input.repeat ? null : "toggleMute"
   if (input.key === "N" || (input.shift && letter("KeyN", "n"))) {
     return input.repeat ? null : "nextVideo"

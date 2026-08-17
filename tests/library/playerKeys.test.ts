@@ -54,6 +54,15 @@ describe("playerShortcutFromInput", () => {
     expect(playerShortcutFromInput({ ...base, key: "ز", code: "KeyC" })).toBe("toggleCaptions")
   })
 
+  test("Enter or Return toggles fullscreen", () => {
+    expect(playerShortcutFromInput({ ...base, key: "Enter", code: "Enter" })).toBe("toggleFullscreen")
+    expect(playerShortcutFromInput({ ...base, key: "Enter", code: "NumpadEnter" })).toBe(
+      "toggleFullscreen"
+    )
+    expect(playerShortcutFromInput({ ...base, key: "Enter", code: "Enter", repeat: true })).toBe(null)
+    expect(playerShortcutFromInput({ ...base, key: "Enter", code: "Enter", meta: true })).toBe(null)
+  })
+
   test("modifier chords are left to app shortcuts", () => {
     expect(playerShortcutFromInput({ ...base, key: "j", code: "KeyJ", meta: true })).toBe(null)
     expect(playerShortcutFromInput({ ...base, key: "j", code: "KeyJ", control: true })).toBe(null)

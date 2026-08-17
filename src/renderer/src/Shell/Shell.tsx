@@ -21,6 +21,7 @@ import { loadComposerOpen, loadShellLayout, saveComposerOpen, saveShellLayout } 
 import { PlayerStage } from "./PlayerStage"
 import type { PromptState } from "./prompt"
 import { ShellDialogs } from "./ShellDialogs"
+import { ShortcutHelp } from "./ShortcutHelp"
 import { jobStatusLine, providerKindLabel } from "./status"
 import { Titlebar } from "./Titlebar"
 
@@ -290,10 +291,13 @@ export function Shell({ snapshot }: Props) {
               </Button>
             ) : null}
           </span>
-          <span>
-            {snapshot.providerConfigured
-              ? `${t(lang, "providerOn")}: ${providerKindLabel(snapshot.provider?.kind)}`
-              : t(lang, "providerOff")}
+          <span className="flex items-center gap-2">
+            <span>
+              {snapshot.providerConfigured
+                ? `${t(lang, "providerOn")}: ${providerKindLabel(snapshot.provider?.kind)}`
+                : t(lang, "providerOff")}
+            </span>
+            <ShortcutHelp lang={lang} />
           </span>
         </footer>
       </div>
