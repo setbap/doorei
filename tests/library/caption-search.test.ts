@@ -61,6 +61,14 @@ describe("imported Caption and lexical Search", () => {
     expect(courseHits).toHaveLength(1)
   })
 
+  test("Search with no Video selected returns no Hits", async () => {
+    const { library } = await unlockedLibrary()
+    await library.createCourse("Course")
+    expect(await library.search({ text: "useEffect", scope: "video" })).toEqual([])
+    expect(await library.search({ text: "useEffect", scope: "session" })).toEqual([])
+    expect(await library.search({ text: "useEffect", scope: "course" })).toEqual([])
+  })
+
   test("Search without a Provider still returns Hits", async () => {
     const { library } = await libraryWithImportedCaption()
     expect(library.snapshot().providerConfigured).toBe(false)

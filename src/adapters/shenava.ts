@@ -189,18 +189,47 @@ async function createShenavaSession(onnxPath: string): Promise<InferenceSession>
   return InferenceSession.create(onnxPath, { executionProviders: ["cpu"] })
 }
 
-function nativeFloat16Tensor(values: Float32Array, dims: number[]): Tensor {
-  // onnxruntime-node copies float16 via NAPI typed-array type 4 (Uint16Array).
-  // On Node 24, Tensor stores Float16Array and the native addon copies 0 bytes
-  // ("not enough space: expected N, got 0"). Re-expose the same buffer as Uint16Array.
-  const f16 = new Float16Array(values.length)
-  f16.set(values)
-  const tensor = new Tensor("float16", f16 as unknown as Uint16Array, dims)
-  Object.defineProperty(tensor, "cpuData", {
-    value: new Uint16Array(f16.buffer, f16.byteOffset, f16.length),
-    configurable: true
-  })
+export function nativeFloat16Tensor(values: Float32Array, dims: number[]): Tensor {
+  // onnxruntime-node copies float16 as NAPI Uint16Array (type 4). Electron 43 /
+  // Node 24 wrap those bits in Float16Array, and the native addon then reports
+  // byteLength 0 ("not enough space: expected N, got 0"). Keep a Uint16Array
+  // we own and put it back on cpuData whenever Tensor hid it.
+  const bits = float32ToFloat16(values)
+  const tensor = new Tensor("float16", bits, dims)
+  if (tensor.data instanceof Uint16Array) return tensor
+  Object.defineProperty(tensor, "cpuData", { value: bits, configurable: true })
   return tensor
+}
+
+function float32ToFloat16(src: Float32Array): Uint16Array {
+  const Float16 = (globalThis as { Float16Array?: Float16ArrayConstructor }).Float16Array
+  if (Float16) {
+    const f16 = new Float16(src.length)
+    f16.set(src)
+    return new Uint16Array(f16.buffer, f16.byteOffset, f16.length)
+  }
+  const out = new Uint16Array(src.length)
+  for (let i = 0; i < src.length; i += 1) out[i] = floatToHalf(src[i] ?? 0)
+  return out
+}
+
+function floatToHalf(value: number): number {
+  const floatView = new Float32Array(1)
+  const int32View = new Int32Array(floatView.buffer)
+  floatView[0] = value
+  const x = int32View[0] ?? 0
+  const sign = (x >>> 16) & 0x8000
+  const exponent = (x >>> 23) & 0xff
+  const mantissa = x & 0x7fffff
+  if (exponent === 255) return sign | 0x7c00 | (mantissa ? 0x200 : 0)
+  const exp = exponent - 127 + 15
+  if (exp >= 31) return sign | 0x7c00
+  if (exp <= 0) {
+    if (exp < -10) return sign
+    const frac = (mantissa | 0x800000) >> (1 - exp)
+    return sign | ((frac + 0x1000) >> 13)
+  }
+  return sign | (exp << 10) | ((mantissa + 0x1000) >> 13)
 }
 
 function tensorToFloat32(tensor: Tensor): Float32Array {

@@ -37,12 +37,11 @@ export function recallCaption(state: LibraryState, videoId: string): Caption | n
 export function videosInScope(state: LibraryState, scope: SearchScope): VideoRecord[] {
   if (scope === "video") {
     const video = state.videos.find((item) => item.id === state.selectedVideoId)
-    if (!video) throw new Error("No Video selected")
-    return [video]
+    return video ? [video] : []
   }
   if (scope === "session") {
     const video = state.videos.find((item) => item.id === state.selectedVideoId)
-    if (!video) throw new Error("No Video selected")
+    if (!video) return []
     return state.videos.filter((item) => item.sessionId === video.sessionId)
   }
   if (!state.selectedCourseId) return []
