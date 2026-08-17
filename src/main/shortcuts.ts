@@ -25,7 +25,7 @@ export function shortcutFromInput(input: ShortcutInput): ShortcutId | null {
   if (input.code === "Comma" || input.key === ",") return "openSettings"
   if (input.code === "KeyP" || input.key.toLowerCase() === "p") return "toggleActionPanel"
   if (input.code === "KeyB" || input.key.toLowerCase() === "b") return "toggleLibrary"
-  if (input.code === "KeyJ" || input.key.toLowerCase() === "j") return "toggleToolPane"
+  if (input.code === "KeyG" || input.key.toLowerCase() === "g") return "toggleToolPane"
   if (input.code === "Backquote" || input.key === "`") return "toggleNote"
   return null
 }

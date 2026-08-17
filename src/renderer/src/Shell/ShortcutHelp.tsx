@@ -1,46 +1,55 @@
-import { useState } from "react"
-import { CircleHelp } from "lucide-react"
-import type { AppLanguage } from "../../../library/types.js"
-import { Button } from "@/components/ui/button"
+import { useState } from "react";
+import { CircleHelp } from "lucide-react";
+import type { AppLanguage } from "../../../library/types.js";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle
-} from "@/components/ui/card"
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog"
-import { Kbd, KbdGroup } from "@/components/ui/kbd"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { t } from "../uiText"
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { t } from "../uiText";
 
-type CopyKey = Parameters<typeof t>[1]
+type CopyKey = Parameters<typeof t>[1];
 
-type Chord = string[]
+type Chord = string[];
 
 type ShortcutRow = {
-  label: CopyKey
-  chords: Chord[]
-}
+  label: CopyKey;
+  chords: Chord[];
+};
 
 type ShortcutSection = {
-  title: CopyKey
-  when: CopyKey
-  rows: ShortcutRow[]
-}
+  title: CopyKey;
+  when: CopyKey;
+  rows: ShortcutRow[];
+};
 
 export function ShortcutHelp({ lang }: { lang: AppLanguage }) {
-  const [open, setOpen] = useState(false)
-  const darwin = window.doorei.platform === "darwin"
-  const mod = darwin ? "⌘" : "Ctrl"
-  const enter = darwin ? t(lang, "keyReturn") : t(lang, "keyEnter")
-  const sections = shortcutSections(mod, enter, t(lang, "keySpace"), t(lang, "keyShift"))
+  const [open, setOpen] = useState(false);
+  const darwin = window.doorei.platform === "darwin";
+  const mod = darwin ? "⌘" : "Ctrl";
+  const enter = darwin ? t(lang, "keyReturn") : t(lang, "keyEnter");
+  const sections = shortcutSections(
+    mod,
+    enter,
+    t(lang, "keySpace"),
+    t(lang, "keyShift")
+  );
 
   return (
     <>
@@ -61,8 +70,8 @@ export function ShortcutHelp({ lang }: { lang: AppLanguage }) {
         <TooltipContent side="top">{t(lang, "shortcuts")}</TooltipContent>
       </Tooltip>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-          <DialogHeader className="px-5 pt-5 pb-3">
+        <DialogContent className="flex max-h-[min(44rem,calc(100vh-4rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader className="shrink-0 px-5 pt-5 pb-3">
             <DialogTitle>{t(lang, "shortcuts")}</DialogTitle>
             <DialogDescription>{t(lang, "shortcutsIntro")}</DialogDescription>
           </DialogHeader>
@@ -72,7 +81,9 @@ export function ShortcutHelp({ lang }: { lang: AppLanguage }) {
                 <section key={section.title}>
                   <Card size="sm" className="bg-white/5 py-0 ring-white/8">
                     <CardHeader className="border-b border-white/8 px-4 py-3">
-                      <CardTitle className="text-sm">{t(lang, section.title)}</CardTitle>
+                      <CardTitle className="text-sm">
+                        {t(lang, section.title)}
+                      </CardTitle>
                       <CardDescription>{t(lang, section.when)}</CardDescription>
                     </CardHeader>
                     <CardContent className="divide-y divide-white/8 p-0">
@@ -81,10 +92,18 @@ export function ShortcutHelp({ lang }: { lang: AppLanguage }) {
                           key={row.label}
                           className="flex items-center justify-between gap-3 px-4 py-2"
                         >
-                          <span className="min-w-0 text-sm">{t(lang, row.label)}</span>
-                          <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5" dir="ltr">
+                          <span className="min-w-0 text-sm">
+                            {t(lang, row.label)}
+                          </span>
+                          <span
+                            className="flex shrink-0 flex-wrap items-center justify-end gap-1.5"
+                            dir="ltr"
+                          >
                             {row.chords.map((chord, index) => (
-                              <span key={chord.join("-")} className="flex items-center gap-1.5">
+                              <span
+                                key={chord.join("-")}
+                                className="flex items-center gap-1.5"
+                              >
                                 {index > 0 ? (
                                   <span className="text-[0.65rem] text-muted-foreground">
                                     {t(lang, "shortcutOr")}
@@ -109,7 +128,7 @@ export function ShortcutHelp({ lang }: { lang: AppLanguage }) {
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }
 
 function shortcutSections(
@@ -126,9 +145,9 @@ function shortcutSections(
         { label: "settings", chords: [[mod, ","]] },
         { label: "switchCourse", chords: [[mod, "P"]] },
         { label: "toggleLibrary", chords: [[mod, "B"]] },
-        { label: "toggleToolPane", chords: [[mod, "J"]] },
-        { label: "toggleNote", chords: [[mod, "`"]] }
-      ]
+        { label: "toggleToolPane", chords: [[mod, "G"]] },
+        { label: "toggleNote", chords: [[mod, "`"]] },
+      ],
     },
     {
       title: "shortcutSectionPlayer",
@@ -145,16 +164,16 @@ function shortcutSections(
         { label: "fullscreen", chords: [["F"], [enter]] },
         { label: "mute", chords: [["M"]] },
         { label: "next", chords: [[shift, "N"]] },
-        { label: "previous", chords: [[shift, "P"]] }
-      ]
+        { label: "previous", chords: [[shift, "P"]] },
+      ],
     },
     {
       title: "shortcutSectionTyping",
       when: "shortcutSectionTypingWhen",
       rows: [
         { label: "search", chords: [[enter]] },
-        { label: "shortcutSend", chords: [[mod, enter]] }
-      ]
-    }
-  ]
+        { label: "shortcutSend", chords: [[mod, enter]] },
+      ],
+    },
+  ];
 }

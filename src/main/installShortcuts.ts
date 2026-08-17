@@ -43,7 +43,7 @@ function appMenuTemplate(
     },
     {
       label: "Toggle Tools",
-      accelerator: "CommandOrControl+J",
+      accelerator: "CommandOrControl+G",
       click: () => send("toggleToolPane")
     },
     {
