@@ -23,7 +23,10 @@
       "esbuild",
       "ffmpeg-static",
       "onnxruntime-node"
-    ]
+    ],
+    "overrides": {
+      "onnxruntime-node": "$onnxruntime-node"
+    }
   },
   "build": {
     "appId": "dev.doorei.app",
