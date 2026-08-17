@@ -15,6 +15,7 @@ import type { AppLanguage } from "../../../library/types.js";
 import { cn } from "@/lib/utils";
 import { glassMenu } from "@/lib/glass";
 import { t } from "../uiText";
+import { Hint } from "../Hint";
 import { BG_COLORS, SPEEDS, TEXT_COLORS } from "./constants";
 import { formatSpeed, formatTime, toHex6 } from "./format";
 import { IconButton } from "./IconButton";
@@ -118,7 +119,7 @@ export function Controls({
         <IconButton label={t(lang, "next")} onClick={onNext}>
           <ChevronRight className="rtl:rotate-180" />
         </IconButton>
-        <IconButton label={t(lang, "watched")} onClick={onMarkWatched}>
+        <IconButton label={t(lang, "watched")} pressed={watched} onClick={onMarkWatched}>
           <Check className={watched ? "text-emerald-300" : undefined} />
         </IconButton>
         <span
@@ -162,17 +163,24 @@ export function Controls({
             }}
           />
           <div className="relative">
-            <button
-              type="button"
-              className="flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-xs leading-none font-medium text-white/90 hover:bg-white/15"
-              aria-label={t(lang, "speed")}
-              onClick={() => {
-                onSpeedOpenChange(!speedOpen);
-                onStyleOpenChange(false);
-              }}
+            <Hint
+              label={t(lang, "speed")}
+              render={
+                <button
+                  type="button"
+                  className="flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-xs leading-none font-medium text-white/90 hover:bg-white/15"
+                  aria-label={t(lang, "speed")}
+                  aria-expanded={speedOpen}
+                  aria-haspopup="listbox"
+                  onClick={() => {
+                    onSpeedOpenChange(!speedOpen)
+                    onStyleOpenChange(false)
+                  }}
+                />
+              }
             >
               {formatSpeed(playbackSpeed)}
-            </button>
+            </Hint>
             {speedOpen ? (
               <div
                 className={cn(
@@ -189,6 +197,7 @@ export function Controls({
                       speed === playbackSpeed &&
                         "bg-white/12 font-medium text-white"
                     )}
+                    aria-pressed={speed === playbackSpeed}
                     onClick={() => {
                       onPlaybackSpeedChange(speed);
                       onSpeedOpenChange(false);
@@ -203,9 +212,10 @@ export function Controls({
           <div className="relative">
             <IconButton
               label={t(lang, "captionStyle")}
+              expanded={styleOpen}
               onClick={() => {
-                onStyleOpenChange(!styleOpen);
-                onSpeedOpenChange(false);
+                onStyleOpenChange(!styleOpen)
+                onSpeedOpenChange(false)
               }}
             >
               <Captions
@@ -235,6 +245,8 @@ export function Controls({
                 </p>
                 <div className="flex items-center gap-1.5">
                   <Swatches
+                    name={t(lang, "captionColor")}
+                    transparentLabel={t(lang, "transparent")}
                     values={TEXT_COLORS}
                     selected={captionColor}
                     onSelect={(value) =>
@@ -244,6 +256,8 @@ export function Controls({
                   <input
                     type="color"
                     className="size-6 cursor-pointer rounded border-0 bg-transparent"
+                    aria-label={t(lang, "captionColor")}
+                    title={t(lang, "captionColor")}
                     value={toHex6(captionColor)}
                     onChange={(event) =>
                       onCaptionStyleChange({ captionColor: event.target.value })
@@ -255,6 +269,8 @@ export function Controls({
                 </p>
                 <div className="flex items-center gap-1.5">
                   <Swatches
+                    name={t(lang, "captionBackground")}
+                    transparentLabel={t(lang, "transparent")}
                     values={BG_COLORS}
                     selected={captionBackground}
                     onSelect={(value) =>
@@ -264,6 +280,8 @@ export function Controls({
                   <input
                     type="color"
                     className="size-6 cursor-pointer rounded border-0 bg-transparent"
+                    aria-label={t(lang, "captionBackground")}
+                    title={t(lang, "captionBackground")}
                     value={toHex6(
                       captionBackground === "transparent"
                         ? "#000000"

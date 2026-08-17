@@ -2,6 +2,7 @@ import { Pause, Play } from "lucide-react";
 import type { ReactNode } from "react";
 import type { AppLanguage } from "../../../library/types.js";
 import { cn } from "@/lib/utils";
+import { Hint } from "../Hint";
 import { t } from "../uiText";
 
 export function PlayOverlay({
@@ -37,23 +38,28 @@ export function PlayOverlay({
           −5
         </div>
       </SkipCircle>
-      <button
-        type="button"
-        className={cn(
-          "grid size-16 place-items-center rounded-full bg-black/25 text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md",
-          visible ? "pointer-events-auto" : "pointer-events-none"
-        )}
-        tabIndex={visible ? 0 : -1}
-        aria-label={t(lang, playing ? "pause" : "play")}
-        onClick={(event) => {
-          event.stopPropagation();
-          onTogglePlay();
-        }}
+      <Hint
+        label={t(lang, playing ? "pause" : "play")}
+        render={
+          <button
+            type="button"
+            className={cn(
+              "grid size-16 place-items-center rounded-full bg-black/25 text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md",
+              visible ? "pointer-events-auto" : "pointer-events-none"
+            )}
+            tabIndex={visible ? 0 : -1}
+            aria-label={t(lang, playing ? "pause" : "play")}
+            onClick={(event) => {
+              event.stopPropagation();
+              onTogglePlay();
+            }}
+          />
+        }
       >
         <span className="grid size-[90%] place-items-center drop-shadow-sm">
           {playing ? <Pause className="size-6" /> : <Play className="ms-0.5 size-6" />}
         </span>
-      </button>
+      </Hint>
       <SkipCircle
         label={t(lang, "seekForward")}
         enabled={visible}
@@ -79,22 +85,26 @@ function SkipCircle({
   children: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      className={cn(
-        "grid size-12 place-items-center rounded-full bg-black/25 text-xs font-medium tabular-nums text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md",
-        enabled ? "pointer-events-auto" : "pointer-events-none"
-      )}
-      tabIndex={enabled ? 0 : -1}
-      aria-label={label}
-      title={label}
-      dir="ltr"
-      onClick={(event) => {
-        event.stopPropagation();
-        onClick();
-      }}
+    <Hint
+      label={label}
+      render={
+        <button
+          type="button"
+          className={cn(
+            "grid size-12 place-items-center rounded-full bg-black/25 text-xs font-medium tabular-nums text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md",
+            enabled ? "pointer-events-auto" : "pointer-events-none"
+          )}
+          tabIndex={enabled ? 0 : -1}
+          aria-label={label}
+          dir="ltr"
+          onClick={(event) => {
+            event.stopPropagation()
+            onClick()
+          }}
+        />
+      }
     >
       {children}
-    </button>
-  );
+    </Hint>
+  )
 }

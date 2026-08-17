@@ -25,6 +25,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Markdown } from "./Markdown";
+import { Hint } from "./Hint";
 import { isModEnter, sendChord } from "./modEnter";
 import { PromptDialog } from "./PromptDialog";
 import { t } from "./uiText";
@@ -134,40 +135,52 @@ export function AskPane({
             {t(lang, "newConversation")}
           </p>
         )}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title={t(lang, "newConversation")}
-          aria-label={t(lang, "newConversation")}
-          onClick={() => void window.doorei.call("createConversation")}
+        <Hint
+          label={t(lang, "newConversation")}
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t(lang, "newConversation")}
+              onClick={() => void window.doorei.call("createConversation")}
+            />
+          }
         >
           <Plus />
-        </Button>
+        </Hint>
         {snapshot.activeConversationId ? (
           <>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title={t(lang, "renameConversation")}
-              aria-label={t(lang, "renameConversation")}
-              onClick={() => setRenameOpen(true)}
+            <Hint
+              label={t(lang, "renameConversation")}
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t(lang, "renameConversation")}
+                  onClick={() => setRenameOpen(true)}
+                />
+              }
             >
               <Pencil />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title={t(lang, "deleteConversation")}
-              aria-label={t(lang, "deleteConversation")}
-              onClick={() =>
-                void window.doorei.call(
-                  "deleteConversation",
-                  snapshot.activeConversationId
-                )
+            </Hint>
+            <Hint
+              label={t(lang, "deleteConversation")}
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t(lang, "deleteConversation")}
+                  onClick={() =>
+                    void window.doorei.call(
+                      "deleteConversation",
+                      snapshot.activeConversationId
+                    )
+                  }
+                />
               }
             >
               <Trash2 />
-            </Button>
+            </Hint>
           </>
         ) : null}
       </div>
@@ -243,16 +256,20 @@ export function AskPane({
               void send();
             }}
           />
-          <Button
-            type="submit"
-            size="icon-sm"
-            className="rounded-full"
-            disabled={asking || !question.trim()}
-            aria-label={t(lang, "send")}
-            title={t(lang, "send")}
+          <Hint
+            label={t(lang, "send")}
+            render={
+              <Button
+                type="submit"
+                size="icon-sm"
+                className="rounded-full"
+                disabled={asking || !question.trim()}
+                aria-label={t(lang, "send")}
+              />
+            }
           >
             {asking ? <Loader2 className="animate-spin" /> : <ArrowUp />}
-          </Button>
+          </Hint>
         </div>
       </form>
 

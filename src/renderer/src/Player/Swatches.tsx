@@ -1,29 +1,45 @@
 import type { CSSProperties } from "react"
 import { cn } from "@/lib/utils"
+import { Hint } from "../Hint"
 
 export function Swatches({
   values,
   selected,
-  onSelect
+  onSelect,
+  name,
+  transparentLabel
 }: {
   values: string[]
   selected: string
   onSelect: (value: string) => void
+  name: string
+  transparentLabel: string
 }) {
   return (
-    <div className="flex gap-1.5">
-      {values.map((value) => (
-        <button
-          key={value}
-          type="button"
-          className={cn(
-            "size-6 rounded-full ring-1 ring-white/25",
-            selected.toLowerCase() === value.toLowerCase() && "ring-2 ring-white"
-          )}
-          style={swatchStyle(value)}
-          onClick={() => onSelect(value)}
-        />
-      ))}
+    <div className="flex gap-1.5" role="group" aria-label={name}>
+      {values.map((value) => {
+        const label = `${name}: ${value === "transparent" ? transparentLabel : value}`
+        const pressed = selected.toLowerCase() === value.toLowerCase()
+        return (
+          <Hint
+            key={value}
+            label={label}
+            render={
+              <button
+                type="button"
+                aria-label={label}
+                aria-pressed={pressed}
+                className={cn(
+                  "size-6 rounded-full ring-1 ring-white/25",
+                  pressed && "ring-2 ring-white"
+                )}
+                style={swatchStyle(value)}
+                onClick={() => onSelect(value)}
+              />
+            }
+          />
+        )
+      })}
     </div>
   )
 }

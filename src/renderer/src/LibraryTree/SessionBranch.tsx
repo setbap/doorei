@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { Hint } from "../Hint"
 import { t } from "../uiText"
 import type { LibraryTreeProps, TreeHandlers } from "./types"
 import { VideoRow } from "./VideoRow"
@@ -119,6 +120,8 @@ export function SessionBranch({
                 variant="ghost"
                 size="icon-xs"
                 draggable={false}
+                aria-label={t(lang, "addVideos")}
+                title={t(lang, "addVideos")}
                 onPointerDown={(event) => event.stopPropagation()}
                 className={cn(
                   "shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 aria-expanded:opacity-100",
@@ -140,36 +143,44 @@ export function SessionBranch({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          draggable={false}
-          title={t(lang, "renameSession")}
-          aria-label={t(lang, "renameSession")}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={onRenameSession}
-          className={cn(
-            "shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100",
-            open && "opacity-70"
-          )}
+        <Hint
+          label={t(lang, "renameSession")}
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              draggable={false}
+              aria-label={t(lang, "renameSession")}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={onRenameSession}
+              className={cn(
+                "shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100",
+                open && "opacity-70"
+              )}
+            />
+          }
         >
           <Pencil />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          draggable={false}
-          title={t(lang, "deleteSession")}
-          aria-label={t(lang, "deleteSession")}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={onDeleteSession}
-          className={cn(
-            "shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100",
-            open && "opacity-70"
-          )}
+        </Hint>
+        <Hint
+          label={t(lang, "deleteSession")}
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              draggable={false}
+              aria-label={t(lang, "deleteSession")}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={onDeleteSession}
+              className={cn(
+                "shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100",
+                open && "opacity-70"
+              )}
+            />
+          }
         >
           <Trash2 />
-        </Button>
+        </Hint>
       </div>
       {open ? (
         <div

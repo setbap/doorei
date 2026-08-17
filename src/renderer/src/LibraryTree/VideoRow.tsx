@@ -148,6 +148,8 @@ export function VideoRow({
                 variant="ghost"
                 size="icon-xs"
                 draggable={false}
+                aria-label={t(lang, "moreActions")}
+                title={t(lang, "moreActions")}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => event.stopPropagation()}
                 className={cn(

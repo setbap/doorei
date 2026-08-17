@@ -15,6 +15,7 @@ import { AppBackdrop } from "../AppBackdrop"
 import { SettingsDialog } from "../SettingsDialog"
 import { ToolPane } from "../ToolPane"
 import { t } from "../uiText"
+import { Hint } from "../Hint"
 import { LibraryAside } from "./LibraryAside"
 import { CourseProgress } from "./CourseProgress"
 import { loadComposerOpen, loadShellLayout, saveComposerOpen, saveShellLayout } from "./layout"
@@ -279,16 +280,20 @@ export function Shell({ snapshot }: Props) {
               {jobs.length ? jobStatusLine(snapshot, jobs) : null}
             </span>
             {failedJobs.length > 0 && !busyJobs ? (
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="shrink-0 text-muted-foreground hover:text-foreground"
-                title={t(lang, "clearFailedJobs")}
-                aria-label={t(lang, "clearFailedJobs")}
-                onClick={() => void window.doorei.call("dismissFailedJobs")}
+              <Hint
+                label={t(lang, "clearFailedJobs")}
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                    aria-label={t(lang, "clearFailedJobs")}
+                    onClick={() => void window.doorei.call("dismissFailedJobs")}
+                  />
+                }
               >
                 <X />
-              </Button>
+              </Hint>
             ) : null}
           </span>
           <span className="flex items-center gap-2">
