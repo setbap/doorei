@@ -8,15 +8,16 @@ export function installShortcuts(
   send: (id: ShortcutId) => void
 ): void {
   window.webContents.on("before-input-event", (event, input) => {
+    const action = shortcutFromInput(input)
+    if (action) {
+      event.preventDefault()
+      send(action)
+      return
+    }
     const chrome = chromeKeyAction(input)
     if (chrome && shouldBlockChromeKey(chrome, app.isPackaged)) {
       event.preventDefault()
-      return
     }
-    const action = shortcutFromInput(input)
-    if (!action) return
-    event.preventDefault()
-    send(action)
   })
   Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(window, send)))
 }
@@ -43,7 +44,7 @@ function appMenuTemplate(
     },
     {
       label: "Toggle Tools",
-      accelerator: "CommandOrControl+G",
+      accelerator: "CommandOrControl+E",
       click: () => send("toggleToolPane")
     },
     {

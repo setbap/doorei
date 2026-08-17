@@ -145,7 +145,7 @@ function shortcutSections(
         { label: "settings", chords: [[mod, ","]] },
         { label: "switchCourse", chords: [[mod, "P"]] },
         { label: "toggleLibrary", chords: [[mod, "B"]] },
-        { label: "toggleToolPane", chords: [[mod, "G"]] },
+        { label: "toggleToolPane", chords: [[mod, "E"]] },
         { label: "toggleNote", chords: [[mod, "`"]] },
       ],
     },

@@ -45,9 +45,15 @@ describe("chromeKeyAction", () => {
 
   test("find, save, view source, and new window are blocked browser chords", () => {
     expect(chromeKeyAction({ ...base, key: "f", code: "KeyF", control: true })).toBe("find")
+    expect(chromeKeyAction({ ...base, key: "g", code: "KeyG", meta: true })).toBe("find")
     expect(chromeKeyAction({ ...base, key: "s", code: "KeyS", meta: true })).toBe("save")
     expect(chromeKeyAction({ ...base, key: "u", code: "KeyU", control: true })).toBe("viewSource")
     expect(chromeKeyAction({ ...base, key: "n", code: "KeyN", meta: true })).toBe("newWindow")
+  })
+
+  test("Cmd+E is not a Chromium chord, so Toggle Tools can use it", () => {
+    expect(chromeKeyAction({ ...base, key: "e", code: "KeyE", meta: true })).toBe(null)
+    expect(chromeKeyAction({ ...base, key: "e", code: "KeyE", control: true })).toBe(null)
   })
 
   test("Alt arrows are history navigation", () => {

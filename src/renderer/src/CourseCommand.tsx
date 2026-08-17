@@ -136,7 +136,7 @@ export function CourseCommand({
               >
                 <PanelRight />
                 {t(lang, "toggleToolPane")}
-                <CommandShortcut>{chord("G")}</CommandShortcut>
+                <CommandShortcut>{chord("E")}</CommandShortcut>
               </CommandItem>
               <CommandItem value={t(lang, "settings")} onSelect={() => closeAnd(onOpenSettings)}>
                 <Settings />

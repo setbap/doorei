@@ -33,11 +33,11 @@ describe("shortcutFromInput", () => {
     expect(shortcutFromInput(b)).toBe(null)
   })
 
-  test("Cmd+G and Ctrl+G toggle the tool pane", () => {
-    const g = { ...comma, key: "g", code: "KeyG" }
-    expect(shortcutFromInput({ ...g, meta: true })).toBe("toggleToolPane")
-    expect(shortcutFromInput({ ...g, control: true })).toBe("toggleToolPane")
-    expect(shortcutFromInput(g)).toBe(null)
+  test("Cmd+E and Ctrl+E toggle the tool pane", () => {
+    const e = { ...comma, key: "e", code: "KeyE" }
+    expect(shortcutFromInput({ ...e, meta: true })).toBe("toggleToolPane")
+    expect(shortcutFromInput({ ...e, control: true })).toBe("toggleToolPane")
+    expect(shortcutFromInput(e)).toBe(null)
   })
 
   test("Cmd+` and Ctrl+` toggle the note", () => {
