@@ -1,4 +1,4 @@
-import type { CSSProperties, RefObject } from "react"
+import type { CSSProperties, RefObject } from "react";
 import {
   Captions,
   Check,
@@ -9,16 +9,16 @@ import {
   Pause,
   Play,
   Volume2,
-  VolumeX
-} from "lucide-react"
-import type { AppLanguage } from "../../../library/types.js"
-import { cn } from "@/lib/utils"
-import { glassMenu } from "@/lib/glass"
-import { t } from "../uiText"
-import { BG_COLORS, SPEEDS, TEXT_COLORS } from "./constants"
-import { formatSpeed, formatTime, toHex6 } from "./format"
-import { IconButton } from "./IconButton"
-import { Swatches } from "./Swatches"
+  VolumeX,
+} from "lucide-react";
+import type { AppLanguage } from "../../../library/types.js";
+import { cn } from "@/lib/utils";
+import { glassMenu } from "@/lib/glass";
+import { t } from "../uiText";
+import { BG_COLORS, SPEEDS, TEXT_COLORS } from "./constants";
+import { formatSpeed, formatTime, toHex6 } from "./format";
+import { IconButton } from "./IconButton";
+import { Swatches } from "./Swatches";
 
 export function Controls({
   lang,
@@ -50,43 +50,46 @@ export function Controls({
   onPlaybackSpeedChange,
   onSubtitlesVisibleChange,
   onCaptionStyleChange,
-  onToggleFullscreen
+  onToggleFullscreen,
 }: {
-  lang: AppLanguage
-  visible: boolean
-  duration: number
-  currentTime: number
-  progress: number
-  playing: boolean
-  watched: boolean
-  muted: boolean
-  volumeValue: number
-  playbackSpeed: number
-  speedOpen: boolean
-  styleOpen: boolean
-  subtitlesVisible: boolean
-  captionColor: string
-  captionBackground: string
-  fullscreen: boolean
-  videoRef: RefObject<HTMLVideoElement | null>
-  onSeek: (seconds: number) => void
-  onPrevious: () => void
-  onTogglePlay: () => void
-  onNext: () => void
-  onMarkWatched: () => void
-  onMutedChange: (muted: boolean) => void
-  onVolumeChange: (volume: number, muted: boolean) => void
-  onSpeedOpenChange: (open: boolean) => void
-  onStyleOpenChange: (open: boolean) => void
-  onPlaybackSpeedChange: (speed: number) => void
-  onSubtitlesVisibleChange: (visible: boolean) => void
-  onCaptionStyleChange: (style: { captionColor?: string; captionBackground?: string }) => void
-  onToggleFullscreen: () => void
+  lang: AppLanguage;
+  visible: boolean;
+  duration: number;
+  currentTime: number;
+  progress: number;
+  playing: boolean;
+  watched: boolean;
+  muted: boolean;
+  volumeValue: number;
+  playbackSpeed: number;
+  speedOpen: boolean;
+  styleOpen: boolean;
+  subtitlesVisible: boolean;
+  captionColor: string;
+  captionBackground: string;
+  fullscreen: boolean;
+  videoRef: RefObject<HTMLVideoElement | null>;
+  onSeek: (seconds: number) => void;
+  onPrevious: () => void;
+  onTogglePlay: () => void;
+  onNext: () => void;
+  onMarkWatched: () => void;
+  onMutedChange: (muted: boolean) => void;
+  onVolumeChange: (volume: number, muted: boolean) => void;
+  onSpeedOpenChange: (open: boolean) => void;
+  onStyleOpenChange: (open: boolean) => void;
+  onPlaybackSpeedChange: (speed: number) => void;
+  onSubtitlesVisibleChange: (visible: boolean) => void;
+  onCaptionStyleChange: (style: {
+    captionColor?: string;
+    captionBackground?: string;
+  }) => void;
+  onToggleFullscreen: () => void;
 }) {
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/50 via-black/18 to-transparent px-3 pt-24 pb-3 transition-opacity duration-200",
+        "pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/55 to-transparent px-3 pt-16 pb-3 transition-opacity duration-200",
         visible ? "opacity-100" : "opacity-0"
       )}
     >
@@ -106,7 +109,10 @@ export function Controls({
         <IconButton label={t(lang, "previous")} onClick={onPrevious}>
           <ChevronLeft className="rtl:rotate-180" />
         </IconButton>
-        <IconButton label={t(lang, playing ? "pause" : "play")} onClick={onTogglePlay}>
+        <IconButton
+          label={t(lang, playing ? "pause" : "play")}
+          onClick={onTogglePlay}
+        >
           {playing ? <Pause /> : <Play className="ms-px" />}
         </IconButton>
         <IconButton label={t(lang, "next")} onClick={onNext}>
@@ -115,7 +121,10 @@ export function Controls({
         <IconButton label={t(lang, "watched")} onClick={onMarkWatched}>
           <Check className={watched ? "text-emerald-300" : undefined} />
         </IconButton>
-        <span className="min-w-20 px-1 font-medium text-white/85 tabular-nums" dir="ltr">
+        <span
+          className="min-w-20 px-1 font-medium text-white/85 tabular-nums"
+          dir="ltr"
+        >
           {formatTime(currentTime)}
           <span className="text-white/45"> / {formatTime(duration)}</span>
         </span>
@@ -123,10 +132,10 @@ export function Controls({
           <IconButton
             label={t(lang, muted || volumeValue === 0 ? "unmute" : "mute")}
             onClick={() => {
-              const el = videoRef.current
-              if (!el) return
-              el.muted = !el.muted
-              onMutedChange(el.muted)
+              const el = videoRef.current;
+              if (!el) return;
+              el.muted = !el.muted;
+              onMutedChange(el.muted);
             }}
           >
             {muted || volumeValue === 0 ? <VolumeX /> : <Volume2 />}
@@ -140,14 +149,16 @@ export function Controls({
             value={volumeValue}
             aria-label={t(lang, "volume")}
             dir="ltr"
-            style={{ "--player-progress": `${volumeValue * 100}%` } as CSSProperties}
+            style={
+              { "--player-progress": `${volumeValue * 100}%` } as CSSProperties
+            }
             onChange={(event) => {
-              const el = videoRef.current
-              const next = Number(event.target.value)
-              if (!el) return
-              el.muted = next === 0
-              el.volume = next
-              onVolumeChange(next, next === 0)
+              const el = videoRef.current;
+              const next = Number(event.target.value);
+              if (!el) return;
+              el.muted = next === 0;
+              el.volume = next;
+              onVolumeChange(next, next === 0);
             }}
           />
           <div className="relative">
@@ -156,25 +167,31 @@ export function Controls({
               className="flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-xs leading-none font-medium text-white/90 hover:bg-white/15"
               aria-label={t(lang, "speed")}
               onClick={() => {
-                onSpeedOpenChange(!speedOpen)
-                onStyleOpenChange(false)
+                onSpeedOpenChange(!speedOpen);
+                onStyleOpenChange(false);
               }}
             >
               {formatSpeed(playbackSpeed)}
             </button>
             {speedOpen ? (
-              <div className={cn("absolute end-0 bottom-10 z-30 min-w-24 rounded-xl p-1", glassMenu)}>
+              <div
+                className={cn(
+                  "absolute end-0 bottom-10 z-30 min-w-24 rounded-xl p-1",
+                  glassMenu
+                )}
+              >
                 {SPEEDS.map((speed) => (
                   <button
                     key={speed}
                     type="button"
                     className={cn(
                       "flex w-full rounded-md px-2.5 py-1.5 text-start text-sm text-white/80 hover:bg-white/10",
-                      speed === playbackSpeed && "bg-white/12 font-medium text-white"
+                      speed === playbackSpeed &&
+                        "bg-white/12 font-medium text-white"
                     )}
                     onClick={() => {
-                      onPlaybackSpeedChange(speed)
-                      onSpeedOpenChange(false)
+                      onPlaybackSpeedChange(speed);
+                      onSpeedOpenChange(false);
                     }}
                   >
                     {formatSpeed(speed)}
@@ -187,50 +204,75 @@ export function Controls({
             <IconButton
               label={t(lang, "captionStyle")}
               onClick={() => {
-                onStyleOpenChange(!styleOpen)
-                onSpeedOpenChange(false)
+                onStyleOpenChange(!styleOpen);
+                onSpeedOpenChange(false);
               }}
             >
-              <Captions className={subtitlesVisible ? "text-white" : "text-white/45"} />
+              <Captions
+                className={subtitlesVisible ? "text-white" : "text-white/45"}
+              />
             </IconButton>
             {styleOpen ? (
-              <div className={cn("absolute end-0 bottom-10 z-30 w-56 rounded-xl p-3 text-white", glassMenu)}>
+              <div
+                className={cn(
+                  "absolute end-0 bottom-10 z-30 w-56 rounded-xl p-3 text-white",
+                  glassMenu
+                )}
+              >
                 <label className="mb-3 flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
                     className="size-3.5 accent-white"
                     checked={subtitlesVisible}
-                    onChange={(event) => onSubtitlesVisibleChange(event.target.checked)}
+                    onChange={(event) =>
+                      onSubtitlesVisibleChange(event.target.checked)
+                    }
                   />
                   {t(lang, "showCaptions")}
                 </label>
-                <p className="mb-1.5 text-xs text-white/55">{t(lang, "captionColor")}</p>
+                <p className="mb-1.5 text-xs text-white/55">
+                  {t(lang, "captionColor")}
+                </p>
                 <div className="flex items-center gap-1.5">
                   <Swatches
                     values={TEXT_COLORS}
                     selected={captionColor}
-                    onSelect={(value) => onCaptionStyleChange({ captionColor: value })}
+                    onSelect={(value) =>
+                      onCaptionStyleChange({ captionColor: value })
+                    }
                   />
                   <input
                     type="color"
                     className="size-6 cursor-pointer rounded border-0 bg-transparent"
                     value={toHex6(captionColor)}
-                    onChange={(event) => onCaptionStyleChange({ captionColor: event.target.value })}
+                    onChange={(event) =>
+                      onCaptionStyleChange({ captionColor: event.target.value })
+                    }
                   />
                 </div>
-                <p className="mt-3 mb-1.5 text-xs text-white/55">{t(lang, "captionBackground")}</p>
+                <p className="mt-3 mb-1.5 text-xs text-white/55">
+                  {t(lang, "captionBackground")}
+                </p>
                 <div className="flex items-center gap-1.5">
                   <Swatches
                     values={BG_COLORS}
                     selected={captionBackground}
-                    onSelect={(value) => onCaptionStyleChange({ captionBackground: value })}
+                    onSelect={(value) =>
+                      onCaptionStyleChange({ captionBackground: value })
+                    }
                   />
                   <input
                     type="color"
                     className="size-6 cursor-pointer rounded border-0 bg-transparent"
-                    value={toHex6(captionBackground === "transparent" ? "#000000" : captionBackground)}
+                    value={toHex6(
+                      captionBackground === "transparent"
+                        ? "#000000"
+                        : captionBackground
+                    )}
                     onChange={(event) =>
-                      onCaptionStyleChange({ captionBackground: `${event.target.value}cc` })
+                      onCaptionStyleChange({
+                        captionBackground: `${event.target.value}cc`,
+                      })
                     }
                   />
                 </div>
@@ -246,5 +288,5 @@ export function Controls({
         </div>
       </div>
     </div>
-  )
+  );
 }
