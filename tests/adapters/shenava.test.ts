@@ -236,29 +236,33 @@ describe("Shenava sidecars", () => {
 })
 
 describe("Shenava ONNX graph", () => {
-  test("a float16 tensor exposes Uint16Array bits without Float16Array", () => {
+  test("a float16 tensor keeps Uint16Array bits for onnxruntime-node", () => {
     const tensor = nativeFloat16Tensor(Float32Array.from([-10, 0, 1]), [3])
     expect(tensor.type).toBe("float16")
     expect(tensor.data).toBeInstanceOf(Uint16Array)
     expect(tensor.data).toHaveLength(3)
   })
 
-  test("a full-window mel tensor infers token ids without a float16 buffer error", async () => {
-    const modelDir = join(
-      process.cwd(),
-      "resources/models",
-      "Reza2kn--Shenava-Koochik-v1.0-ONNX-fp16"
-    )
-    const onnxReady =
-      existsSync(modelDir) && readdirSync(modelDir).some((name) => name.endsWith("_embedded.onnx"))
-    if (!onnxReady) return
-    const graph = await createOnnxShenavaGraph(modelDir)
-    const mel = new Float32Array(80 * 2005)
-    mel.fill(-10)
-    const ids = await graph.infer(mel, 2005)
-    expect(ids.length).toBeGreaterThan(0)
-    expect(ids.every((id) => Number.isInteger(id) && id >= 0 && id < 1025)).toBe(true)
-  }, 30_000)
+  const modelDir = join(
+    process.cwd(),
+    "resources/models",
+    "Reza2kn--Shenava-Koochik-v1.0-ONNX-fp16"
+  )
+  const onnxReady =
+    existsSync(modelDir) && readdirSync(modelDir).some((name) => name.endsWith("_embedded.onnx"))
+
+  test.skipIf(!onnxReady)(
+    "a full-window mel tensor infers token ids without a float16 buffer error",
+    async () => {
+      const graph = await createOnnxShenavaGraph(modelDir)
+      const mel = new Float32Array(80 * 2005)
+      mel.fill(-10)
+      const ids = await graph.infer(mel, 2005)
+      expect(ids.length).toBeGreaterThan(0)
+      expect(ids.every((id) => Number.isInteger(id) && id >= 0 && id < 1025)).toBe(true)
+    },
+    30_000
+  )
 })
 
 function dummyFilters(): number[][] {

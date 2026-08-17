@@ -190,21 +190,24 @@ async function createShenavaSession(onnxPath: string): Promise<InferenceSession>
 }
 
 export function nativeFloat16Tensor(values: Float32Array, dims: number[]): Tensor {
-  // onnxruntime-node copies float16 via NAPI typed-array type 4 (Uint16Array).
-  // Node 24's Tensor wraps those bits in Float16Array, and the native addon then
-  // copies 0 bytes ("not enough space: expected N, got 0"). Node 22 has no
-  // Float16Array, so pack IEEE-754 half bits ourselves and always expose Uint16Array.
+  // onnxruntime-node copies float16 as NAPI Uint16Array (type 4). Electron 43 /
+  // Node 24 wrap those bits in Float16Array, and the native addon then reports
+  // byteLength 0 ("not enough space: expected N, got 0"). Keep a Uint16Array
+  // we own and put it back on cpuData whenever Tensor hid it.
   const bits = float32ToFloat16(values)
   const tensor = new Tensor("float16", bits, dims)
-  const view = tensor.data as ArrayBufferView
-  Object.defineProperty(tensor, "cpuData", {
-    value: new Uint16Array(view.buffer, view.byteOffset, view.byteLength / Uint16Array.BYTES_PER_ELEMENT),
-    configurable: true
-  })
+  if (tensor.data instanceof Uint16Array) return tensor
+  Object.defineProperty(tensor, "cpuData", { value: bits, configurable: true })
   return tensor
 }
 
 function float32ToFloat16(src: Float32Array): Uint16Array {
+  const Float16 = (globalThis as { Float16Array?: Float16ArrayConstructor }).Float16Array
+  if (Float16) {
+    const f16 = new Float16(src.length)
+    f16.set(src)
+    return new Uint16Array(f16.buffer, f16.byteOffset, f16.length)
+  }
   const out = new Uint16Array(src.length)
   for (let i = 0; i < src.length; i += 1) out[i] = floatToHalf(src[i] ?? 0)
   return out
