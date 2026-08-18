@@ -150,6 +150,15 @@ jobs:
             .cache/electron-builder
           key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
+      # electron-builder extracts CJS icon-tool.js into ELECTRON_BUILDER_CACHE.
+      # This repo is "type": "module", so Node treats that .js as ESM unless a
+      # nearer package.json stops the walk. mac.icon is a committed .icns so
+      # conversion is skipped; this still covers a PNG icon later.
+      - name: Treat electron-builder cache as CommonJS
+        run: |
+          mkdir -p "$ELECTRON_BUILDER_CACHE"
+          printf '{ "type": "commonjs" }\n' > "$ELECTRON_BUILDER_CACHE/package.json"
+
       - name: Restore bundled models
         uses: actions/download-artifact@v4
         with:
@@ -217,8 +226,8 @@ jobs:
 
   release:
     name: GitHub Release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [authorize, models, build]
+    if: always() && !cancelled() && needs.authorize.result == 'success' && needs.models.result == 'success' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

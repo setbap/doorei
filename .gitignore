@@ -17,6 +17,7 @@ node_modules/
 out/
 dist/
 release/
+.cache/
 
 # Test / local data
 coverage/

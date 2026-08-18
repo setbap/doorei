@@ -64,7 +64,7 @@
       }
     ],
     "mac": {
-      "icon": "build/mac.png",
+      "icon": "build/icon.icns",
       "target": "dmg",
       "forceCodeSigning": false,
       "extraResources": [
