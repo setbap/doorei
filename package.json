@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "fetch-models": "node --experimental-strip-types scripts/fetch-models.ts",
+    "release": "node --experimental-strip-types scripts/tag-release.ts",
     "package": "pnpm fetch-models && pnpm build && electron-builder",
     "postinstall": "node node_modules/electron/install.js && node --experimental-strip-types scripts/brand-dev-electron.ts"
   },
