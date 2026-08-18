@@ -46,6 +46,7 @@
       "**/node_modules/@opencode-ai/**",
       "**/out/main/shenavaWorker.js",
       "**/out/main/parakeetWorker.js",
+      "**/out/main/embeddingWorker.js",
       "**/out/main/chunks/**"
     ],
     "afterPack": "./scripts/afterPack.cjs",

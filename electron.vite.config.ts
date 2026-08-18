@@ -11,7 +11,8 @@ export default defineConfig({
         input: {
           index: resolve("src/main/index.ts"),
           shenavaWorker: resolve("src/adapters/shenavaWorker.ts"),
-          parakeetWorker: resolve("src/adapters/parakeetWorker.ts")
+          parakeetWorker: resolve("src/adapters/parakeetWorker.ts"),
+          embeddingWorker: resolve("src/adapters/embeddingWorker.ts")
         },
         external: ["onnxruntime-node"]
       }

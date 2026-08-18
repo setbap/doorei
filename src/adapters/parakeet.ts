@@ -37,6 +37,7 @@ export type ParakeetJoin = (
 export type ParakeetGraph = {
   encode(pcm: Float32Array): Promise<{ frameCount: number }>
   join(frameIndex: number, prevToken: number): Promise<{ tokenId: number; duration: number }>
+  release?(): Promise<void>
 }
 
 export type PcmWindow = {
@@ -301,6 +302,11 @@ export async function createOnnxParakeetGraph(
         state2 = new Float32Array(result.output_states_2?.data as Float32Array)
       }
       return { tokenId, duration }
+    },
+    async release() {
+      encoded = null
+      await encoder.release()
+      await decoder.release()
     }
   }
 }

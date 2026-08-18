@@ -47,11 +47,55 @@ type WorkerClient = {
   pending: Map<number, { resolve: (segments: CaptionSegment[]) => void; reject: (error: Error) => void }>
 }
 
-export function createSpeechRecognizer(modelsRoot: string): SpeechRecognizer {
+/** After Captioning finishes, kill the ASR worker so Search/playback do not keep native weights. */
+export const SPEECH_SESSION_IDLE_MS = 30_000
+
+export type SpeechRecognizerOptions = {
+  idleMs?: number
+}
+
+export function createSpeechRecognizer(
+  modelsRoot: string,
+  options: SpeechRecognizerOptions = {}
+): SpeechRecognizer {
+  const idleMs = options.idleMs ?? SPEECH_SESSION_IDLE_MS
   let workerClient: WorkerClient | null = null
   let shenavaInProcess: ShenavaModel | null = null
   let parakeetInProcess: ParakeetModel | null = null
   let nextWindowId = 1
+  let idleTimer: ReturnType<typeof setTimeout> | null = null
+  let inflight = 0
+
+  function clearIdle(): void {
+    if (idleTimer == null) return
+    clearTimeout(idleTimer)
+    idleTimer = null
+  }
+
+  async function dropSession(): Promise<void> {
+    if (inflight > 0) return
+    clearIdle()
+    const worker = workerClient
+    workerClient = null
+    const shenava = shenavaInProcess
+    shenavaInProcess = null
+    const parakeet = parakeetInProcess
+    parakeetInProcess = null
+    if (worker) {
+      failPending(worker, new Error("ASR worker disposed"))
+      await worker.worker.terminate()
+    }
+    await shenava?.graph.release?.()
+    await parakeet?.graph.release?.()
+  }
+
+  function scheduleIdle(): void {
+    clearIdle()
+    if (inflight > 0) return
+    idleTimer = setTimeout(() => {
+      void dropSession()
+    }, idleMs)
+  }
 
   async function inferShenavaWindow(window: PcmWindow, modelPath: string): Promise<CaptionSegment[]> {
     const client = await ensureWorker(modelPath, "shenavaWorker.js", "Shenava")
@@ -178,19 +222,26 @@ export function createSpeechRecognizer(modelsRoot: string): SpeechRecognizer {
 
   return {
     async caption({ modelId, videoPath, onSegment, onProgress }) {
-      if (modelId === REQUIRED_MODELS.parakeet) {
-        await runParakeetStreaming(videoPath, onSegment, onProgress, (window) =>
-          inferParakeetWindow(window, modelDir(modelsRoot, modelId))
-        )
-        return
+      inflight += 1
+      clearIdle()
+      try {
+        if (modelId === REQUIRED_MODELS.parakeet) {
+          await runParakeetStreaming(videoPath, onSegment, onProgress, (window) =>
+            inferParakeetWindow(window, modelDir(modelsRoot, modelId))
+          )
+          return
+        }
+        if (modelId === REQUIRED_MODELS.shenava) {
+          await runShenavaStreaming(videoPath, onSegment, onProgress, (window) =>
+            inferShenavaWindow(window, modelDir(modelsRoot, modelId))
+          )
+          return
+        }
+        throw new Error(`Unknown ASR Model: ${modelId}`)
+      } finally {
+        inflight -= 1
+        scheduleIdle()
       }
-      if (modelId === REQUIRED_MODELS.shenava) {
-        await runShenavaStreaming(videoPath, onSegment, onProgress, (window) =>
-          inferShenavaWindow(window, modelDir(modelsRoot, modelId))
-        )
-        return
-      }
-      throw new Error(`Unknown ASR Model: ${modelId}`)
     }
   }
 }

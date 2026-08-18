@@ -28,6 +28,7 @@ const WINDOW_OFFSET = (N_FFT - WIN_LENGTH) / 2
 
 export type ShenavaGraph = {
   infer(mel: Float32Array, frameCount: number): Promise<number[]>
+  release?(): Promise<void>
 }
 
 const HANN = hann(WIN_LENGTH)
@@ -164,6 +165,9 @@ export async function createOnnxShenavaGraph(modelDir: string): Promise<ShenavaG
         lengthsTensor && lengthsTensor.data.length > 0 ? Number(lengthsTensor.data[0]) : steps
       const usable = Math.max(0, Math.min(steps, encoded))
       return argmaxLogits(tensorToFloat32(logitsTensor), usable, vocab)
+    },
+    async release() {
+      await session.release()
     }
   }
 }
