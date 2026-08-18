@@ -105,9 +105,20 @@ export type SessionRecord = {
   position: number
 }
 
+export type CoursePrompts = { improve: string; summary: string; ask: string }
+
+export type CourseSettingsInput = {
+  spokenLanguageDefault?: SpokenLanguage
+  outputLanguage?: AppLanguage
+  prompts?: Partial<CoursePrompts>
+}
+
 export type CourseRecord = {
   id: string
   name: string
+  spokenLanguageDefault: SpokenLanguage
+  outputLanguage: AppLanguage
+  prompts: CoursePrompts
 }
 
 export type Job = {
@@ -129,7 +140,7 @@ export type LibrarySnapshot = {
   providerVault: ProviderVault
   spokenLanguageDefault: SpokenLanguage
   settings: PlayerSettings
-  prompts: { improve: string; summary: string; ask: string }
+  prompts: CoursePrompts
   requiredModels: { id: (typeof REQUIRED_MODELS)[keyof typeof REQUIRED_MODELS]; complete: boolean }[]
   courses: CourseRecord[]
   selectedCourseId: string | null
@@ -192,16 +203,14 @@ export type Library = {
   subscribe(listener: () => void): () => void
 
   chooseAppLanguage(language: AppLanguage): Promise<void>
-  setOutputLanguage(language: AppLanguage): Promise<void>
   configureProvider(
     config: ProviderConfig | ProviderFieldKind | null,
     vault?: ProviderVault | Partial<Record<ProviderKind, ProviderKindFields>>
   ): Promise<void>
-  setSpokenLanguageDefault(language: SpokenLanguage): Promise<void>
   updateSettings(patch: Partial<PlayerSettings>): Promise<void>
-  updatePrompt(job: "improve" | "summary" | "ask", prompt: string): Promise<void>
 
-  createCourse(name: string): Promise<string>
+  createCourse(name: string, options?: CourseSettingsInput): Promise<string>
+  updateCourse(id: string, patch: CourseSettingsInput & { name?: string }): Promise<void>
   renameCourse(id: string, name: string): Promise<void>
   deleteCourse(id: string): Promise<void>
   selectCourse(id: string): Promise<void>

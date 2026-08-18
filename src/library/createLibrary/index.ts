@@ -9,7 +9,6 @@ import {
 import type { Library, LibraryDeps, ProviderVault } from "../types.js"
 import type { LibraryCore } from "./core.js"
 import { coursesApi } from "./coursesApi.js"
-import { migratePrompts } from "./helpers.js"
 import { bindJobs } from "./jobs.js"
 import { recallApi } from "./recallApi.js"
 import { collectHits } from "./search.js"
@@ -27,7 +26,6 @@ import { videosApi } from "./videosApi.js"
 
 export function createLibrary(deps: LibraryDeps): Library {
   const loaded = loadLibrary(deps.dataDir)
-  loaded.prompts = migratePrompts(loaded.prompts)
   const state = loaded
   const listeners = new Set<() => void>()
   const core = {

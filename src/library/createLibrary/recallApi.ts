@@ -5,6 +5,7 @@ import {
   packAskHits,
   sessionSummarySnippets
 } from "../askPack.js"
+import { settingsForCourse } from "../courseSettings.js"
 import type { ConversationTurn, Hit, Library } from "../types.js"
 import type { LibraryCore } from "./core.js"
 import { id, titleFromQuestion, unwrapFence } from "./helpers.js"
@@ -78,9 +79,10 @@ export function recallApi(core: LibraryCore): Pick<
       const currentVideoSummaryMissing = Boolean(video) && currentVideoSummary === null
       const sessionSummaries = sessionSummarySnippets(sessionHits, state.summaries)
       const existing = core.activeConversation()
-      const outputLanguage = state.outputLanguage ?? state.appLanguage ?? "fa"
+      const course = settingsForCourse(state, courseId)
+      const outputLanguage = course.outputLanguage
       const budget = state.settings.askContextBudgetTokens ?? 24_000
-      const system = state.prompts.ask
+      const system = course.prompts.ask
       const pack = (turns: ConversationTurn[]): string =>
         JSON.stringify({
           outputLanguage,

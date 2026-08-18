@@ -22,6 +22,18 @@ export function ensureApp(db: DatabaseSync): void {
       position INTEGER NOT NULL
     );
   `)
+  addColumn(db, "courses", "spoken_language", "TEXT")
+  addColumn(db, "courses", "output_language", "TEXT")
+  addColumn(db, "courses", "prompts", "TEXT")
+}
+
+function addColumn(db: DatabaseSync, table: string, column: string, spec: string): void {
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${spec}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!message.includes("duplicate column name")) throw error
+  }
 }
 
 export function ensureCourse(db: DatabaseSync): void {
@@ -105,6 +117,10 @@ export function kvSet(db: DatabaseSync, key: string, value: string): void {
     key,
     value
   )
+}
+
+export function kvDelete(db: DatabaseSync, key: string): void {
+  db.prepare("DELETE FROM kv WHERE key = ?").run(key)
 }
 
 export function parseJson<T>(raw: string | null, fallback: T): T {

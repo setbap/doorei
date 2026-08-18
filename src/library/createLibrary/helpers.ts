@@ -1,8 +1,6 @@
 import { jsonrepair } from "jsonrepair"
 import { formatStamp } from "../hitLinks.js"
-import { DEFAULT_PROMPTS, LEGACY_ASK_PROMPT, LEGACY_IMPROVE_PROMPT } from "../defaults.js"
 import type { CaptionSegment } from "../types.js"
-import type { LibraryState } from "../persist/index.js"
 
 const IMPROVE_CHUNK_SEGMENTS = 80
 const IMPROVE_CHUNK_CHARS = 12_000
@@ -24,19 +22,6 @@ export function unwrapFence(text: string): string {
   const trimmed = text.trim()
   const fenced = /^```(?:json|markdown|md)?\s*\n([\s\S]*?)\n```$/i.exec(trimmed)
   return (fenced ? fenced[1] : trimmed).trim()
-}
-
-export function migratePrompts(
-  loaded: Partial<LibraryState["prompts"]> | undefined
-): LibraryState["prompts"] {
-  const prompts = { ...DEFAULT_PROMPTS, ...loaded }
-  if (!loaded?.improve || loaded.improve === LEGACY_IMPROVE_PROMPT) {
-    prompts.improve = DEFAULT_PROMPTS.improve
-  }
-  if (!loaded?.ask || loaded.ask === LEGACY_ASK_PROMPT) {
-    prompts.ask = DEFAULT_PROMPTS.ask
-  }
-  return prompts
 }
 
 function asJsonArray(parsed: unknown): unknown[] {

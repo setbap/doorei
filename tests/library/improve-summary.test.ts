@@ -84,8 +84,10 @@ describe("Improved Caption and Summary", () => {
 
   test("Improve and Summary prompts are customizable", async () => {
     const { library } = await captionLibrary()
-    await library.updatePrompt("improve", "custom improve")
-    await library.updatePrompt("summary", "custom summary")
+    await library.createCourse("C")
+    await library.updateCourse(library.snapshot().selectedCourseId!, {
+      prompts: { improve: "custom improve", summary: "custom summary" }
+    })
     expect(library.snapshot().prompts.improve).toBe("custom improve")
     expect(library.snapshot().prompts.summary).toBe("custom summary")
   })

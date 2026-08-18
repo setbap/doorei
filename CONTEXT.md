@@ -11,7 +11,7 @@ The on-disk collection of Courses and all derived data. It never contains video 
 _Avoid_: vault, workspace, catalog, database
 
 **Course**:
-A named container of Sessions the user switches between.
+A named container of Sessions the user switches between. It owns Output language, Spoken language default, and Improve / Summary / Ask prompts.
 _Avoid_: class, program, folder
 
 **Session**:
@@ -83,11 +83,11 @@ Language of the UI. Persian is RTL. Chosen on first launch before the Library is
 _Avoid_: locale, i18n
 
 **Output language**:
-Language of Summary and Ask. Defaults to App language. Independent of a Video's Spoken language.
+Language of Summary and Ask for a Course. Prefills from App language when the Course is created. Independent of a Video's Spoken language.
 _Avoid_: response language, target language
 
 **Spoken language**:
-The language of a Video's audio. Chosen when the Video is added, defaulting from App settings. It selects which ASR Model Captioning uses. Shenava is never used for English.
+The language of a Video's audio. Chosen when the Video is added, defaulting from the Course. It selects which ASR Model Captioning uses. Shenava is never used for English.
 _Avoid_: audio language, transcript language
 
 **ASR Model**:

@@ -8,29 +8,15 @@ import type { LibraryCore } from "./core.js"
 
 export function settingsApi(core: LibraryCore): Pick<
   Library,
-  | "chooseAppLanguage"
-  | "setOutputLanguage"
-  | "configureProvider"
-  | "setSpokenLanguageDefault"
-  | "updateSettings"
-  | "updatePrompt"
-  | "setActivity"
+  "chooseAppLanguage" | "configureProvider" | "updateSettings" | "setActivity"
 > {
   const { state } = core
   return {
     async chooseAppLanguage(language) {
       state.appLanguage = language
-      if (state.outputLanguage === null) {
-        state.outputLanguage = language
-      }
       if (core.modelsComplete()) {
         state.gatePassed = true
       }
-      core.emit({ kind: "app" })
-    },
-    async setOutputLanguage(language) {
-      core.assertUsable()
-      state.outputLanguage = language
       core.emit({ kind: "app" })
     },
     async configureProvider(configOrKind, vaultOrByKind) {
@@ -55,18 +41,9 @@ export function settingsApi(core: LibraryCore): Pick<
       state.provider = config
       core.emit({ kind: "app" })
     },
-    async setSpokenLanguageDefault(language) {
-      state.spokenLanguageDefault = language
-      core.emit({ kind: "app" })
-    },
     async updateSettings(patch) {
       core.assertUsable()
       state.settings = { ...state.settings, ...patch }
-      core.emit({ kind: "app" })
-    },
-    async updatePrompt(job, prompt) {
-      core.assertUsable()
-      state.prompts[job] = prompt
       core.emit({ kind: "app" })
     },
     async setActivity(activity) {

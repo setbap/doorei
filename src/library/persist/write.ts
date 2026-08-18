@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite"
-import { ensureApp, ensureCourse, kvSet, withDb } from "./db.js"
+import { ensureApp, ensureCourse, kvDelete, kvSet, withDb } from "./db.js"
 import { saveVideoEmbeddings } from "./embeddings.js"
 import { appPath, coursePath } from "./paths.js"
 import type { LibraryState } from "./types.js"
@@ -103,15 +103,23 @@ export function writeApp(dataDir: string, state: LibraryState): void {
   withDb(appPath(dataDir), (db) => {
     ensureApp(db)
     db.exec("DELETE FROM courses")
-    const insert = db.prepare("INSERT INTO courses(id, name, position) VALUES(?, ?, ?)")
-    state.courses.forEach((course, position) => insert.run(course.id, course.name, position))
+    const insert = db.prepare(
+      "INSERT INTO courses(id, name, position, spoken_language, output_language, prompts) VALUES(?, ?, ?, ?, ?, ?)"
+    )
+    state.courses.forEach((course, position) =>
+      insert.run(
+        course.id,
+        course.name,
+        position,
+        course.spokenLanguageDefault,
+        course.outputLanguage,
+        JSON.stringify(course.prompts)
+      )
+    )
     kvSet(db, "appLanguage", JSON.stringify(state.appLanguage))
-    kvSet(db, "outputLanguage", JSON.stringify(state.outputLanguage))
     kvSet(db, "provider", JSON.stringify(state.provider))
     kvSet(db, "providerVault", JSON.stringify(state.providerVault))
-    kvSet(db, "spokenLanguageDefault", JSON.stringify(state.spokenLanguageDefault))
     kvSet(db, "settings", JSON.stringify(state.settings))
-    kvSet(db, "prompts", JSON.stringify(state.prompts))
     kvSet(db, "selectedCourseId", JSON.stringify(state.selectedCourseId))
     kvSet(db, "selectedVideoId", JSON.stringify(state.selectedVideoId))
     kvSet(db, "activity", JSON.stringify(state.activity))
@@ -119,5 +127,8 @@ export function writeApp(dataDir: string, state: LibraryState): void {
     kvSet(db, "searchHits", JSON.stringify(state.searchHits))
     kvSet(db, "activeConversationByCourse", JSON.stringify(state.activeConversationByCourse))
     kvSet(db, "lastAskError", JSON.stringify(state.lastAskError))
+    kvDelete(db, "outputLanguage")
+    kvDelete(db, "spokenLanguageDefault")
+    kvDelete(db, "prompts")
   })
 }

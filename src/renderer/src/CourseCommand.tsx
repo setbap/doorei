@@ -96,7 +96,7 @@ export function CourseCommand({
                 {t(lang, "newCourse")}
               </CommandItem>
               <CommandItem
-                value={t(lang, "renameCourse")}
+                value={t(lang, "editCourse")}
                 disabled={!snapshot.selectedCourseId}
                 onSelect={() => {
                   if (!snapshot.selectedCourseId) return
@@ -104,7 +104,7 @@ export function CourseCommand({
                 }}
               >
                 <Pencil />
-                {t(lang, "renameCourse")}
+                {t(lang, "editCourse")}
               </CommandItem>
               <CommandItem
                 value={t(lang, "generateMissingSummaries")}

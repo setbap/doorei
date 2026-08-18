@@ -1,4 +1,5 @@
 import { persistLibrary } from "../persist/index.js"
+import { settingsForVideo } from "../courseSettings.js"
 import { REQUIRED_MODELS } from "../models.js"
 import type { Caption, CaptionSegment, Job, SpokenLanguage } from "../types.js"
 import type { LibraryCore } from "./core.js"
@@ -200,7 +201,7 @@ export function bindJobs(core: LibraryCore): void {
       job.progress = chunkIndex / chunks.length
       core.emit("ui")
       const raw = await deps.providerClient.complete({
-        system: state.prompts.improve,
+        system: settingsForVideo(state, job.videoId).prompts.improve,
         prompt: `Spoken language: ${video.spokenLanguage}\nRewrite these Caption texts as JSON. Return a JSON array of strings, same order, same count.\n${JSON.stringify(chunk.map((segment) => segment.text))}`
       })
       let texts: string[]
@@ -251,11 +252,11 @@ export function bindJobs(core: LibraryCore): void {
     }
     const caption = recallCaption(state, job.videoId)
     if (!caption) throw new Error("No Caption to summarize")
-    const outputLanguage = state.outputLanguage ?? state.appLanguage ?? "fa"
+    const course = settingsForVideo(state, job.videoId)
     const text = unwrapFence(
       await deps.providerClient.complete({
-        system: state.prompts.summary,
-        prompt: `Output language: ${outputLanguage}\n${captionLines(caption.segments)}`
+        system: course.prompts.summary,
+        prompt: `Output language: ${course.outputLanguage}\n${captionLines(caption.segments)}`
       })
     )
     if (!text) throw new Error("Provider returned an empty Summary")

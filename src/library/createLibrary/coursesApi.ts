@@ -1,3 +1,4 @@
+import { applyCoursePatch, fieldsForCreate, validateCourseName } from "../courseSettings.js"
 import { deleteCourseData } from "../persist/index.js"
 import type { Library } from "../types.js"
 import type { LibraryCore } from "./core.js"
@@ -6,6 +7,7 @@ import { id } from "./helpers.js"
 export function coursesApi(core: LibraryCore): Pick<
   Library,
   | "createCourse"
+  | "updateCourse"
   | "renameCourse"
   | "deleteCourse"
   | "selectCourse"
@@ -16,19 +18,32 @@ export function coursesApi(core: LibraryCore): Pick<
 > {
   const { state, deps } = core
   return {
-    async createCourse(name) {
+    async createCourse(name, options) {
       core.assertUsable()
       const courseId = id("crs")
-      state.courses.push({ id: courseId, name })
+      state.courses.push({
+        id: courseId,
+        name: validateCourseName(name),
+        ...fieldsForCreate(state.appLanguage, options)
+      })
       state.selectedCourseId = courseId
       core.emit()
       return courseId
     },
+    async updateCourse(courseId, patch) {
+      core.assertUsable()
+      const index = state.courses.findIndex((item) => item.id === courseId)
+      const course = state.courses[index]
+      if (!course) throw new Error("Course not found")
+      state.courses[index] = applyCoursePatch(course, patch)
+      core.emit({ kind: "app" })
+    },
     async renameCourse(courseId, name) {
       core.assertUsable()
-      const course = state.courses.find((item) => item.id === courseId)
+      const index = state.courses.findIndex((item) => item.id === courseId)
+      const course = state.courses[index]
       if (!course) throw new Error("Course not found")
-      course.name = name
+      state.courses[index] = applyCoursePatch(course, { name })
       core.emit({ kind: "app" })
     },
     async deleteCourse(courseId) {

@@ -1,3 +1,4 @@
+import { settingsForCourse } from "../courseSettings.js"
 import { DEFAULT_SETTINGS } from "../defaults.js"
 import { REQUIRED_MODELS } from "../models.js"
 import type { LibrarySnapshot } from "../types.js"
@@ -11,22 +12,23 @@ export function buildSnapshot(core: LibraryCore): LibrarySnapshot {
   }
   const selected = state.videos.find((video) => video.id === state.selectedVideoId) ?? null
   const selectedCourse = state.courses.find((course) => course.id === state.selectedCourseId) ?? null
+  const courseSettings = settingsForCourse(state, state.selectedCourseId)
   return {
     usable: core.usable(),
     appLanguage: state.appLanguage,
-    outputLanguage: state.outputLanguage ?? state.appLanguage ?? "fa",
+    outputLanguage: courseSettings.outputLanguage,
     direction: core.direction(),
     providerConfigured: state.provider !== null,
     provider: state.provider ? { ...state.provider } : null,
     providerVault: core.vaultForSnapshot(),
-    spokenLanguageDefault: state.spokenLanguageDefault,
+    spokenLanguageDefault: courseSettings.spokenLanguageDefault,
     settings: { ...DEFAULT_SETTINGS, ...state.settings },
-    prompts: { ...state.prompts },
+    prompts: { ...courseSettings.prompts },
     requiredModels: Object.values(REQUIRED_MODELS).map((modelId) => ({
       id: modelId,
       complete: deps.modelStore.isComplete(modelId)
     })),
-    courses: state.courses.map((course) => ({ ...course })),
+    courses: state.courses.map((course) => ({ ...course, prompts: { ...course.prompts } })),
     selectedCourseId: state.selectedCourseId,
     selectedVideoId: state.selectedVideoId,
     sessions: treeSessions(state).map((session) => ({ ...session })),

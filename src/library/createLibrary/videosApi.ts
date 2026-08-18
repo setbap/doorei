@@ -1,3 +1,4 @@
+import { settingsForCourse } from "../courseSettings.js"
 import { loadCourseEmbeddings, saveVideoEmbeddings } from "../persist/index.js"
 import { captionFromSidecar } from "../parseCaption.js"
 import type { Library } from "../types.js"
@@ -27,7 +28,8 @@ export function videosApi(core: LibraryCore): Pick<
       core.assertUsable()
       const session = state.sessions.find((item) => item.id === input.sessionId)
       if (!session) throw new Error("Session not found")
-      const spokenLanguage = input.spokenLanguage ?? state.spokenLanguageDefault
+      const spokenLanguage =
+        input.spokenLanguage ?? settingsForCourse(state, session.courseId).spokenLanguageDefault
       const start = state.videos.filter((video) => video.sessionId === input.sessionId).length
       const ids: string[] = []
       for (const [index, path] of input.paths.entries()) {

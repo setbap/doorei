@@ -1,5 +1,10 @@
 import type { PlayerSettings } from "./types.js"
 
+export const COURSE_NAME_MIN = 1
+export const COURSE_NAME_MAX = 120
+export const COURSE_PROMPT_MIN = 14
+export const COURSE_PROMPT_MAX = 8000
+
 export const DEFAULT_PROMPTS = {
   improve:
     "Rewrite this Caption with corrected wording. Keep the same Spoken language. Fix technical terms. Return only a JSON array of strings in the same order, one rewritten text per input. Do not change the number of items. Do not include timestamps.",

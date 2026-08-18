@@ -122,7 +122,9 @@ describe("Ask", () => {
   test("Provider complete receives the Ask prompt, Output language, current Video and Session, and labeled Hits", async () => {
     const { providerClient, prompts } = recordingProvider()
     const { library, videoId, sessionId } = await courseWithLesson(providerClient)
-    await library.updatePrompt("ask", "answer briefly")
+    await library.updateCourse(library.snapshot().selectedCourseId!, {
+      prompts: { ask: "answer briefly" }
+    })
     await library.ask({ question: "when does useEffect run?" })
     expect(prompts[0]?.system).toBe("answer briefly")
     const packed = JSON.parse(prompts[0]!.prompt) as {

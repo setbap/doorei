@@ -30,10 +30,10 @@ describe("ingest and play", () => {
     expect(secondId).toBeTruthy()
   })
 
-  test("Spoken language defaults from App settings and English never selects Shenava", async () => {
+  test("Spoken language defaults from the Course and English never selects Shenava", async () => {
     const media = memoryMedia({ existing: ["/en/a.mp4", "/fa/a.mp4"] })
     const { library } = await unlockedLibrary({ media })
-    await library.createCourse("Mix")
+    const mixId = await library.createCourse("Mix")
     const sessionId = await library.createSession({ name: "Week 1" })
 
     const [persianId] = await library.addVideos({
@@ -44,7 +44,7 @@ describe("ingest and play", () => {
       "fa"
     )
 
-    await library.setSpokenLanguageDefault("en")
+    await library.updateCourse(mixId, { spokenLanguageDefault: "en" })
     const [englishId] = await library.addVideos({
       sessionId,
       paths: ["/en/a.mp4"]

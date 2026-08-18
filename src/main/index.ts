@@ -114,12 +114,10 @@ function createMainWindow(): void {
 
 const LIBRARY_METHODS = new Set([
   "chooseAppLanguage",
-  "setOutputLanguage",
   "configureProvider",
-  "setSpokenLanguageDefault",
   "updateSettings",
-  "updatePrompt",
   "createCourse",
+  "updateCourse",
   "renameCourse",
   "deleteCourse",
   "selectCourse",

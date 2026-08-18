@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, unlinkSync } from "node:fs"
-import { DEFAULT_PROMPTS, DEFAULT_SETTINGS } from "../defaults.js"
-import type { Caption, ConversationTurn, Job, SpokenLanguage } from "../types.js"
+import { hydrateCourse, type LegacyCourseGlobals } from "../courseSettings.js"
+import { DEFAULT_SETTINGS } from "../defaults.js"
+import type { Caption, ConversationTurn, CoursePrompts, Job, SpokenLanguage } from "../types.js"
 import { ensureApp, ensureCourse, kvGet, parseJson, withDb } from "./db.js"
 import { emptyLibraryState } from "./empty.js"
 import { loadCourseEmbeddings } from "./embeddings.js"
@@ -149,15 +150,13 @@ function loadCourseFile(dataDir: string, courseId: string, state: LibraryState):
 
 function loadSqlite(dataDir: string): LibraryState {
   const state = emptyLibraryState()
+  let needsPersist = false
   withDb(appPath(dataDir), (db) => {
     ensureApp(db)
     state.appLanguage = parseJson(kvGet(db, "appLanguage"), null)
-    state.outputLanguage = parseJson(kvGet(db, "outputLanguage"), null)
     state.provider = parseJson(kvGet(db, "provider"), null)
     state.providerVault = parseJson(kvGet(db, "providerVault"), {})
-    state.spokenLanguageDefault = parseJson(kvGet(db, "spokenLanguageDefault"), "fa")
     state.settings = { ...DEFAULT_SETTINGS, ...parseJson(kvGet(db, "settings"), {}) }
-    state.prompts = { ...DEFAULT_PROMPTS, ...parseJson(kvGet(db, "prompts"), {}) }
     state.selectedCourseId = parseJson(kvGet(db, "selectedCourseId"), null)
     state.selectedVideoId = parseJson(kvGet(db, "selectedVideoId"), null)
     state.activity = parseJson(kvGet(db, "activity"), "summary")
@@ -165,12 +164,42 @@ function loadSqlite(dataDir: string): LibraryState {
     state.searchHits = parseJson(kvGet(db, "searchHits"), [])
     state.activeConversationByCourse = parseJson(kvGet(db, "activeConversationByCourse"), {})
     state.lastAskError = parseJson(kvGet(db, "lastAskError"), null)
-    const courses = db.prepare("SELECT id, name, position FROM courses ORDER BY position").all() as {
+    const fallback: LegacyCourseGlobals = {
+      appLanguage: state.appLanguage,
+      outputLanguage: parseJson(kvGet(db, "outputLanguage"), null),
+      spokenLanguageDefault: parseJson(kvGet(db, "spokenLanguageDefault"), null),
+      prompts: parseJson<Partial<CoursePrompts> | null>(kvGet(db, "prompts"), null)
+    }
+    const legacyKeysPresent =
+      kvGet(db, "outputLanguage") !== null ||
+      kvGet(db, "spokenLanguageDefault") !== null ||
+      kvGet(db, "prompts") !== null
+    const courses = db.prepare(
+      "SELECT id, name, position, spoken_language, output_language, prompts FROM courses ORDER BY position"
+    ).all() as {
       id: string
       name: string
       position: number
+      spoken_language: string | null
+      output_language: string | null
+      prompts: string | null
     }[]
-    state.courses = courses.map((course) => ({ id: course.id, name: course.name }))
+    state.courses = courses.map((course) => {
+      if (course.spoken_language === null || course.output_language === null || course.prompts === null) {
+        needsPersist = true
+      }
+      return hydrateCourse(
+        {
+          id: course.id,
+          name: course.name,
+          spokenLanguageDefault: course.spoken_language,
+          outputLanguage: course.output_language,
+          prompts: parseJson(course.prompts, null)
+        },
+        fallback
+      )
+    })
+    if (legacyKeysPresent) needsPersist = true
   })
   for (const course of state.courses) loadCourseFile(dataDir, course.id, state)
   if (state.selectedCourseId) {
@@ -179,17 +208,39 @@ function loadSqlite(dataDir: string): LibraryState {
   for (const video of state.videos) {
     video.hasSummary = Boolean(state.summaries[video.id])
   }
+  if (needsPersist) saveLibrary(dataDir, state)
   return state
+}
+
+type LegacyJson = Partial<LibraryState> & {
+  outputLanguage?: LegacyCourseGlobals["outputLanguage"]
+  spokenLanguageDefault?: LegacyCourseGlobals["spokenLanguageDefault"]
+  prompts?: Partial<CoursePrompts>
 }
 
 function loadJsonFile(dataDir: string): LibraryState | null {
   try {
-    const loaded = JSON.parse(readFileSync(jsonPath(dataDir), "utf8")) as Partial<LibraryState>
+    const loaded = JSON.parse(readFileSync(jsonPath(dataDir), "utf8")) as LegacyJson
+    const {
+      outputLanguage,
+      spokenLanguageDefault,
+      prompts,
+      courses,
+      settings,
+      ...rest
+    } = loaded
     return {
       ...emptyLibraryState(),
-      ...loaded,
-      settings: { ...DEFAULT_SETTINGS, ...loaded.settings },
-      prompts: { ...DEFAULT_PROMPTS, ...loaded.prompts }
+      ...rest,
+      settings: { ...DEFAULT_SETTINGS, ...settings },
+      courses: (courses ?? []).map((course) =>
+        hydrateCourse(course, {
+          appLanguage: rest.appLanguage,
+          outputLanguage,
+          spokenLanguageDefault,
+          prompts
+        })
+      )
     }
   } catch {
     return null

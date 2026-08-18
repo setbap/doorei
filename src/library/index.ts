@@ -7,6 +7,13 @@ export {
   hubUrlForModel
 } from "./models.js"
 export { createLibrary } from "./createLibrary/index.js"
+export { DEFAULT_PROMPTS } from "./defaults.js"
+export {
+  COURSE_NAME_MAX,
+  COURSE_NAME_MIN,
+  COURSE_PROMPT_MAX,
+  COURSE_PROMPT_MIN
+} from "./defaults.js"
 export {
   providerByKindFromVault,
   providerConfigFromFields,
@@ -20,6 +27,9 @@ export type {
   CaptionSegment,
   ConversationRecord,
   ConversationTurn,
+  CoursePrompts,
+  CourseRecord,
+  CourseSettingsInput,
   Embedder,
   Hit,
   Job,

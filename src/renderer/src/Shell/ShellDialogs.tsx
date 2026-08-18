@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react"
+import { DEFAULT_PROMPTS } from "../../../library/defaults.js"
 import type { AppLanguage, LibrarySnapshot, SpokenLanguage } from "../../../library/types.js"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
+import { CourseFormDialog, type CourseFormValues } from "../CourseFormDialog"
 import { PromptDialog } from "../PromptDialog"
 import { t } from "../uiText"
 import type { PromptState } from "./prompt"
@@ -45,31 +47,45 @@ export function ShellDialogs({
 }) {
   return (
     <>
-      <PromptDialog
+      <CourseFormDialog
         open={prompt?.kind === "course"}
+        lang={lang}
         title={t(lang, "newCourse")}
-        label={t(lang, "courseName")}
         submitLabel={t(lang, "create")}
-        cancelLabel={t(lang, "cancel")}
+        values={{
+          name: "",
+          spokenLanguageDefault: snapshot.appLanguage ?? "fa",
+          outputLanguage: snapshot.appLanguage ?? "fa",
+          prompts: { ...DEFAULT_PROMPTS }
+        }}
         onOpenChange={(open) => {
           if (!open) setPrompt(null)
         }}
-        onSubmit={(name) => void window.doorei.call("createCourse", name)}
+        onSubmit={(values) =>
+          void window.doorei.call("createCourse", values.name, {
+            spokenLanguageDefault: values.spokenLanguageDefault,
+            outputLanguage: values.outputLanguage,
+            prompts: values.prompts
+          })
+        }
       />
-      <PromptDialog
+      <CourseFormDialog
         open={prompt?.kind === "rename"}
-        title={t(lang, "renameCourse")}
-        label={t(lang, "courseName")}
+        lang={lang}
+        title={t(lang, "editCourse")}
         submitLabel={t(lang, "save")}
-        cancelLabel={t(lang, "cancel")}
-        defaultValue={snapshot.selectedCourseName ?? ""}
+        values={editCourseValues(snapshot)}
         onOpenChange={(open) => {
           if (!open) setPrompt(null)
         }}
-        onSubmit={(name) => {
-          if (snapshot.selectedCourseId) {
-            void window.doorei.call("renameCourse", snapshot.selectedCourseId, name)
-          }
+        onSubmit={(values) => {
+          if (!snapshot.selectedCourseId) return
+          void window.doorei.call("updateCourse", snapshot.selectedCourseId, {
+            name: values.name,
+            spokenLanguageDefault: values.spokenLanguageDefault,
+            outputLanguage: values.outputLanguage,
+            prompts: values.prompts
+          })
         }}
       />
       <PromptDialog
@@ -220,4 +236,14 @@ export function ShellDialogs({
       </Dialog>
     </>
   )
+}
+
+function editCourseValues(snapshot: LibrarySnapshot): CourseFormValues {
+  const course = snapshot.courses.find((item) => item.id === snapshot.selectedCourseId)
+  return {
+    name: course?.name ?? snapshot.selectedCourseName ?? "",
+    spokenLanguageDefault: course?.spokenLanguageDefault ?? snapshot.spokenLanguageDefault,
+    outputLanguage: course?.outputLanguage ?? snapshot.outputLanguage,
+    prompts: course ? { ...course.prompts } : { ...snapshot.prompts }
+  }
 }

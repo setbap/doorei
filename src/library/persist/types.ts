@@ -4,13 +4,13 @@ import type {
   Caption,
   ConversationRecord,
   ConversationTurn,
+  CourseRecord,
   Hit,
   Job,
   Note,
   PlayerSettings,
   ProviderConfig,
   ProviderVault,
-  SpokenLanguage,
   VideoRecord
 } from "../types.js"
 
@@ -29,17 +29,14 @@ export type EmbeddingRow = {
 
 export type LibraryState = {
   appLanguage: AppLanguage | null
-  outputLanguage: AppLanguage | null
   provider: ProviderConfig | null
   providerVault: ProviderVault
-  spokenLanguageDefault: SpokenLanguage
   settings: PlayerSettings
-  prompts: { improve: string; summary: string; ask: string }
   selectedCourseId: string | null
   selectedVideoId: string | null
   activity: Activity
   gatePassed: boolean
-  courses: { id: string; name: string }[]
+  courses: CourseRecord[]
   sessions: { id: string; courseId: string; name: string; date: string | null; position: number }[]
   videos: VideoRecord[]
   notes: Note[]

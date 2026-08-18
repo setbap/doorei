@@ -5,7 +5,6 @@ import type {
   LibrarySnapshot,
   ProviderKind,
   ProviderKindFields,
-  SpokenLanguage,
 } from "../../library/types.js";
 import {
   providerByKindFromVault,
@@ -34,9 +33,6 @@ export function Welcome({ snapshot }: Props) {
   );
   const [selected, setSelected] = useState<AppLanguage>(
     snapshot.appLanguage ?? "fa"
-  );
-  const [spoken, setSpoken] = useState<SpokenLanguage>(
-    snapshot.spokenLanguageDefault
   );
   const [kind, setKind] = useState<ProviderFieldKind>(
     snapshot.provider?.kind ?? "none"
@@ -69,14 +65,12 @@ export function Welcome({ snapshot }: Props) {
         ) : (
           <Setup
             lang={selected}
-            spoken={spoken}
             kind={kind}
             byKind={byKind}
             models={models}
             allComplete={allComplete}
             onBack={() => setStep("intro")}
             onAppLanguage={setSelected}
-            onSpokenLanguage={setSpoken}
             onKindChange={setKind}
             onFieldsChange={(nextKind, patch) =>
               setByKind((current) => ({
@@ -86,7 +80,6 @@ export function Welcome({ snapshot }: Props) {
             }
             onOpen={() => {
               void (async () => {
-                await window.doorei.call("setSpokenLanguageDefault", spoken);
                 await window.doorei.call("configureProvider", kind, byKind);
                 await window.doorei.call("chooseAppLanguage", selected);
               })();
@@ -124,27 +117,23 @@ function Intro({ lang, onStart }: { lang: AppLanguage; onStart: () => void }) {
 
 function Setup({
   lang,
-  spoken,
   kind,
   byKind,
   models,
   allComplete,
   onBack,
   onAppLanguage,
-  onSpokenLanguage,
   onKindChange,
   onFieldsChange,
   onOpen,
 }: {
   lang: AppLanguage;
-  spoken: SpokenLanguage;
   kind: ProviderFieldKind;
   byKind: ReturnType<typeof providerByKindFromVault>;
   models: { id: string; complete: boolean; label: string }[];
   allComplete: boolean;
   onBack: () => void;
   onAppLanguage: (language: AppLanguage) => void;
-  onSpokenLanguage: (language: SpokenLanguage) => void;
   onKindChange: (kind: ProviderFieldKind) => void;
   onFieldsChange: (kind: ProviderKind, patch: Partial<ProviderKindFields>) => void;
   onOpen: () => void;
@@ -215,13 +204,6 @@ function Setup({
             value={lang}
             onChange={onAppLanguage}
           />
-          <LanguagePair
-            lang={lang}
-            label={t(lang, "courseAsrLanguage")}
-            hint={t(lang, "courseAsrLanguageHint")}
-            value={spoken}
-            onChange={onSpokenLanguage}
-          />
         </section>
       </div>
 
@@ -285,7 +267,7 @@ function LanguagePair({
   lang: AppLanguage;
   label: string;
   hint: string;
-  value: AppLanguage | SpokenLanguage;
+  value: AppLanguage;
   onChange: (language: AppLanguage) => void;
 }) {
   return (

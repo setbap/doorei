@@ -43,19 +43,12 @@ describe("first launch", () => {
     expect(library.snapshot().usable).toBe(true)
   })
 
-  test("Spoken language default can be stored before the Library is usable", async () => {
-    const { library } = createTestLibrary()
-    await library.setSpokenLanguageDefault("en")
-    expect(library.snapshot().spokenLanguageDefault).toBe("en")
-    expect(library.snapshot().usable).toBe(false)
-  })
-
-  test("App language and Spoken language stay independent when the Library opens", async () => {
+  test("without a Course, Output language and Spoken language default follow App language", async () => {
     const { library, modelStore } = createTestLibrary()
-    await library.setSpokenLanguageDefault("en")
     modelStore.markAllRequired()
-    await library.chooseAppLanguage("fa")
-    expect(library.snapshot().appLanguage).toBe("fa")
+    await library.chooseAppLanguage("en")
+    expect(library.snapshot().appLanguage).toBe("en")
+    expect(library.snapshot().outputLanguage).toBe("en")
     expect(library.snapshot().spokenLanguageDefault).toBe("en")
     expect(library.snapshot().usable).toBe(true)
   })

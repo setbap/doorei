@@ -63,6 +63,10 @@ export function Shell({ snapshot }: Props) {
   }
 
   useEffect(() => {
+    setSpoken(snapshot.spokenLanguageDefault)
+  }, [snapshot.spokenLanguageDefault, snapshot.selectedCourseId])
+
+  useEffect(() => {
     setPlaybackTime(selected?.playbackPositionSeconds ?? 0)
   }, [selected?.id])
 

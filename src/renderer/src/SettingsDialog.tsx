@@ -3,7 +3,7 @@ import {
   providerByKindFromVault,
   type ProviderFieldKind
 } from "../../library/providerConfig.js"
-import type { AppLanguage, LibrarySnapshot, SpokenLanguage } from "../../library/types.js"
+import type { AppLanguage, LibrarySnapshot } from "../../library/types.js"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -23,7 +23,6 @@ import {
   SelectValue
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import { ProviderFields } from "./ProviderFields"
 import { t } from "./uiText"
 import { updateStatusLabel } from "./UpdateBanner"
@@ -41,9 +40,6 @@ const tabPanelClass = "min-h-72 overflow-y-auto px-1 py-0.5"
 export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
   const [kind, setKind] = useState<ProviderFieldKind>(snapshot.provider?.kind ?? "none")
   const [byKind, setByKind] = useState(() => providerByKindFromVault(snapshot.providerVault))
-  const [improve, setImprove] = useState(snapshot.prompts.improve)
-  const [summary, setSummary] = useState(snapshot.prompts.summary)
-  const [ask, setAsk] = useState(snapshot.prompts.ask)
   const [version, setVersion] = useState("")
   const [update, setUpdate] = useState<AppUpdateStatus>({ kind: "idle" })
   const languageItems = {
@@ -69,7 +65,6 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
             <TabsTrigger value="player">{t(lang, "settingsPlayer")}</TabsTrigger>
             <TabsTrigger value="language">{t(lang, "settingsLanguage")}</TabsTrigger>
             <TabsTrigger value="provider">{t(lang, "settingsProvider")}</TabsTrigger>
-            <TabsTrigger value="prompts">{t(lang, "settingsPrompts")}</TabsTrigger>
             <TabsTrigger value="app">{t(lang, "settingsApp")}</TabsTrigger>
           </TabsList>
           <TabsContent value="player" className={tabPanelClass}>
@@ -119,6 +114,22 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
                   }
                 />
               </Label>
+              <Label className="flex items-center justify-between gap-3 border-t border-white/8 px-3 py-2.5 font-normal">
+                <span>{t(lang, "askContextBudget")}</span>
+                <Input
+                  id="ask-budget"
+                  type="number"
+                  min="1"
+                  step="1000"
+                  className="h-6 w-20 [appearance:textfield] border-white/10 bg-transparent px-1.5 text-center text-sm tabular-nums dark:bg-transparent [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  value={snapshot.settings.askContextBudgetTokens}
+                  onChange={(event) =>
+                    void window.doorei.call("updateSettings", {
+                      askContextBudgetTokens: Number(event.target.value)
+                    })
+                  }
+                />
+              </Label>
             </div>
           </TabsContent>
           <TabsContent value="language" className={tabPanelClass}>
@@ -130,23 +141,6 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
                 value={lang}
                 items={languageItems}
                 onValueChange={(value) => void window.doorei.call("chooseAppLanguage", value)}
-              />
-              <LanguageField
-                id="spoken-default"
-                label={t(lang, "courseAsrLanguage")}
-                hint={t(lang, "courseAsrLanguageHint")}
-                value={snapshot.spokenLanguageDefault}
-                items={languageItems}
-                onValueChange={(value) =>
-                  void window.doorei.call("setSpokenLanguageDefault", value)
-                }
-              />
-              <LanguageField
-                id="output-language"
-                label={t(lang, "outputLanguage")}
-                value={snapshot.outputLanguage}
-                items={languageItems}
-                onValueChange={(value) => void window.doorei.call("setOutputLanguage", value)}
               />
             </div>
           </TabsContent>
@@ -163,53 +157,6 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
                 }))
               }
             />
-          </TabsContent>
-          <TabsContent value="prompts" className={tabPanelClass}>
-            <div className="grid gap-3">
-              <div className="grid gap-2">
-                <Label htmlFor="improve-prompt">{t(lang, "improvePrompt")}</Label>
-                <Textarea
-                  id="improve-prompt"
-                  className="bg-white/5"
-                  value={improve}
-                  onChange={(event) => setImprove(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="summary-prompt">{t(lang, "summaryPrompt")}</Label>
-                <Textarea
-                  id="summary-prompt"
-                  className="bg-white/5"
-                  value={summary}
-                  onChange={(event) => setSummary(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="ask-prompt">{t(lang, "askPrompt")}</Label>
-                <Textarea
-                  id="ask-prompt"
-                  className="bg-white/5"
-                  value={ask}
-                  onChange={(event) => setAsk(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="ask-budget">{t(lang, "askContextBudget")}</Label>
-                <Input
-                  id="ask-budget"
-                  type="number"
-                  min="1"
-                  step="1000"
-                  className="bg-white/5"
-                  value={snapshot.settings.askContextBudgetTokens}
-                  onChange={(event) =>
-                    void window.doorei.call("updateSettings", {
-                      askContextBudgetTokens: Number(event.target.value)
-                    })
-                  }
-                />
-              </div>
-            </div>
           </TabsContent>
           <TabsContent value="app" className={tabPanelClass}>
             <div className="grid gap-4">
@@ -246,9 +193,6 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
           <Button
             onClick={() => {
               void window.doorei.call("configureProvider", kind, byKind)
-              void window.doorei.call("updatePrompt", "improve", improve)
-              void window.doorei.call("updatePrompt", "summary", summary)
-              void window.doorei.call("updatePrompt", "ask", ask)
               onOpenChange(false)
             }}
           >
@@ -288,7 +232,7 @@ function LanguageField({
   id: string
   label: string
   hint?: string
-  value: AppLanguage | SpokenLanguage
+  value: AppLanguage
   items: Record<string, string>
   onValueChange: (value: AppLanguage) => void
 }) {
