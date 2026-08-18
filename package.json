@@ -47,6 +47,12 @@
       "**/out/main/parakeetWorker.js",
       "**/out/main/chunks/**"
     ],
+    "afterPack": "./scripts/afterPack.cjs",
+    "publish": {
+      "provider": "github",
+      "owner": "setbap",
+      "repo": "doorei"
+    },
     "extraResources": [
       {
         "from": "resources/models",
@@ -60,6 +66,7 @@
     "mac": {
       "icon": "build/mac.png",
       "target": "dmg",
+      "forceCodeSigning": false,
       "extraResources": [
         {
           "from": "build/mac.png",
@@ -103,6 +110,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "electron-updater": "^6.8.9",
     "ffmpeg-static": "^5.3.0",
     "jsonrepair": "^3.15.0",
     "lucide-react": "^1.31.0",

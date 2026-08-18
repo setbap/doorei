@@ -1,9 +1,19 @@
 import { contextBridge, ipcRenderer } from "electron"
 import type { LibrarySnapshot } from "../library/index.js"
+import type { AppUpdateStatus } from "../main/appUpdate.js"
 import type { ShortcutId } from "../main/shortcuts.js"
 
 const api = {
   platform: process.platform,
+  appVersion: (): Promise<string> => ipcRenderer.invoke("app:version"),
+  updateStatus: (): Promise<AppUpdateStatus> => ipcRenderer.invoke("update:status"),
+  checkForUpdate: (): Promise<AppUpdateStatus> => ipcRenderer.invoke("update:check"),
+  installUpdate: (): Promise<void> => ipcRenderer.invoke("update:install"),
+  subscribeUpdate: (listener: (status: AppUpdateStatus) => void): (() => void) => {
+    const handler = (_event: unknown, status: AppUpdateStatus) => listener(status)
+    ipcRenderer.on("update:changed", handler)
+    return () => ipcRenderer.removeListener("update:changed", handler)
+  },
   snapshot: (): Promise<LibrarySnapshot> => ipcRenderer.invoke("library:snapshot"),
   call: (method: string, ...args: unknown[]): Promise<unknown> =>
     ipcRenderer.invoke("library:call", method, args),

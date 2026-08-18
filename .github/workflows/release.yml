@@ -2,6 +2,16 @@ name: Release
 
 # Push a version tag (v0.1.0) to package macOS, Linux, and Windows installers
 # and attach them to a GitHub Release. workflow_dispatch builds artifacts only.
+#
+# Each platform builds a full first-install package (with the ~900MB model pack)
+# and a slim in-app update (models omitted). The running app keeps models in
+# userData, so updates download app code only.
+#
+# Optional code signing — add these repository secrets when you have certificates:
+#   CSC_LINK / CSC_KEY_PASSWORD           macOS Developer ID .p12 (base64)
+#   APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID   macOS notarization
+#   WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD   Windows Authenticode .pfx (base64)
+# Without them, installers are unsigned. macOS in-app update needs a signed app.
 on:
   push:
     tags:
@@ -54,21 +64,36 @@ jobs:
     needs: models
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: macos-latest
             name: macOS
-            builder: "--mac"
+            fullBuilder: "--mac dmg"
+            slimBuilder: "--mac zip"
+            feed: latest-mac.yml
             artifact: Doorei-mac
           - os: ubuntu-latest
             name: Linux
-            builder: "--linux"
+            fullBuilder: "--linux AppImage"
+            slimBuilder: "--linux AppImage"
+            feed: latest-linux.yml
             artifact: Doorei-linux
           - os: windows-latest
             name: Windows
-            builder: "--win"
+            fullBuilder: "--win nsis"
+            slimBuilder: "--win nsis"
+            feed: latest.yml
             artifact: Doorei-windows
     steps:
       - uses: actions/checkout@v4
@@ -110,11 +135,30 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and package
+      - name: Build
+        run: pnpm build
+
+      - name: Package full installer
+        run: pnpm exec electron-builder ${{ matrix.fullBuilder }} --publish never
+
+      - name: Package slim update
         env:
-          # No signing certs in CI; skip identity lookup so unsigned builds succeed.
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: pnpm build && pnpm exec electron-builder ${{ matrix.builder }} --publish never
+          DOOREI_SLIM_UPDATE: "1"
+        run: >
+          pnpm exec electron-builder ${{ matrix.slimBuilder }} --publish never
+          -c.artifactName='${productName}-${version}-${os}-update.${ext}'
+
+      - name: Write update feed
+        run: |
+          VERSION=$(node --input-type=module -e "import { readFileSync } from 'node:fs'; console.log(JSON.parse(readFileSync('package.json', 'utf8')).version)")
+          shopt -s nullglob
+          artifacts=(release/*-update.zip release/*-update.exe release/*-update.AppImage)
+          if [ "${#artifacts[@]}" -ne 1 ]; then
+            echo "expected one slim update artifact, found: ${artifacts[*]-none}"
+            ls -lh release || true
+            exit 1
+          fi
+          node --experimental-strip-types scripts/write-update-yml.ts "$VERSION" "${artifacts[0]}" "release/${{ matrix.feed }}"
 
       - name: Show packaged files
         if: always()
@@ -156,4 +200,8 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           body: |
-            Installers are unsigned. macOS Gatekeeper will warn until the app is signed and notarized.
+            Download the macOS dmg, Windows Setup exe, or Linux AppImage for a first install (includes the model pack).
+
+            Files named `*-update.*` plus `latest*.yml` are for in-app updates and omit the model pack. The app keeps models in user data, so later updates do not download them again.
+
+            Installers are unsigned unless repository signing secrets are set. macOS Gatekeeper will warn, and macOS in-app update needs a signed app.
