@@ -15,11 +15,12 @@ pnpm dev
 
 ## Release
 
-Push a version tag to package macOS (dmg), Linux (AppImage), and Windows (nsis) installers and attach them to a GitHub Release. The packaged app then checks GitHub for updates and downloads a slim package that omits the model pack:
+Push a version tag on `master` (by someone with write access) to package macOS (dmg), Linux (AppImage), and Windows (nsis) installers and attach them to a GitHub Release. The packaged app then checks GitHub for updates and downloads a slim package that omits the model pack:
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git checkout master
+git tag 0.1.0
+git push origin 0.1.0
 ```
 
 Optional signing secrets (Settings → Secrets and variables → Actions):

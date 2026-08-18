@@ -1,7 +1,8 @@
 name: Release
 
-# Push a version tag (v0.1.0) to package macOS, Linux, and Windows installers
-# and attach them to a GitHub Release. workflow_dispatch builds artifacts only.
+# A version tag on master (0.1.0 or v0.1.0), pushed by someone with write
+# access, packages macOS, Linux, and Windows installers and attaches them to a
+# GitHub Release. Forks, other branches, and manual runs do not build.
 #
 # Each platform builds a full first-install package (with the ~900MB model pack)
 # and a slim in-app update (models omitted). The running app keeps models in
@@ -15,8 +16,8 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
-  workflow_dispatch:
+      - "v[0-9]*"
+      - "[0-9]*"
 
 permissions:
   contents: write
@@ -34,8 +35,43 @@ env:
   ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
 
 jobs:
+  authorize:
+    name: Authorize release
+    runs-on: ubuntu-latest
+    if: github.event.repository.fork == false
+    steps:
+      - name: Require write access
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          perm="$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${GITHUB_ACTOR}/permission" --jq '.permission')"
+          echo "actor=${GITHUB_ACTOR} permission=${perm}"
+          case "$perm" in
+            admin|maintain|write) ;;
+            *)
+              echo "Only users with write access to this repository can create a release tag." >&2
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the tag to point at master
+        run: |
+          git fetch --no-tags origin master
+          if git merge-base --is-ancestor "${GITHUB_SHA}" origin/master; then
+            echo "Tag ${GITHUB_REF_NAME} is on master ($(git rev-parse --short "${GITHUB_SHA}"))"
+          else
+            echo "Tag ${GITHUB_REF_NAME} is not on master; releases only run for master tags." >&2
+            git log -1 --oneline "${GITHUB_SHA}"
+            exit 1
+          fi
+
   models:
     name: Fetch bundled models
+    needs: authorize
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
