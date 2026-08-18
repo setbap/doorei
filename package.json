@@ -1,7 +1,7 @@
 {
   "name": "doorei",
   "productName": "Doorei",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "private": true,
   "description": "A personal recall library for downloaded video courses",
   "type": "module",
