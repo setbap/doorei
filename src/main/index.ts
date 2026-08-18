@@ -2,10 +2,12 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, protocol, shell } from "electron"
 import { applyAppIdentity, migrateUnpackagedLibrary } from "./appIdentity.js"
+import { installAppUpdate } from "./installAppUpdate.js"
 import { mediaResponse, toMediaUrl } from "./mediaProtocol.js"
 import { startMediaServer } from "./mediaServer.js"
 import { installDesktopChrome } from "./installDesktopChrome.js"
 import { installShortcuts } from "./installShortcuts.js"
+import { resolveModelsRoot } from "./userModelPack.js"
 import type { ShortcutId } from "./shortcuts.js"
 import { createLibrary, type Library, type LibrarySnapshot } from "../library/index.js"
 import { createDiskModelStore } from "../adapters/modelStore.js"
@@ -41,9 +43,15 @@ function bundledModelsRoot(): string {
 }
 
 function dataPaths() {
+  const bundledRoot = bundledModelsRoot()
   return {
     dataDir: join(app.getPath("userData"), "library"),
-    modelsRoot: bundledModelsRoot()
+    modelsRoot: app.isPackaged
+      ? resolveModelsRoot({
+          bundledRoot,
+          userRoot: join(app.getPath("userData"), "models")
+        })
+      : bundledRoot
   }
 }
 
@@ -206,8 +214,16 @@ app.whenReady().then(async () => {
     }
     await shell.openExternal(parsed.href)
   })
+  const updater = installAppUpdate(app, (status) => {
+    mainWindow?.webContents.send("update:changed", status)
+  })
+  ipcMain.handle("app:version", () => app.getVersion())
+  ipcMain.handle("update:status", () => updater.status())
+  ipcMain.handle("update:check", () => updater.check())
+  ipcMain.handle("update:install", () => updater.install())
 
   createMainWindow()
+  void updater.check()
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
   })

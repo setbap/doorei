@@ -1,9 +1,15 @@
 import type { LibrarySnapshot } from "../library/types.js"
+import type { AppUpdateStatus } from "../main/appUpdate.js"
 
 declare global {
   interface Window {
     doorei: {
       platform: string
+      appVersion: () => Promise<string>
+      updateStatus: () => Promise<AppUpdateStatus>
+      checkForUpdate: () => Promise<AppUpdateStatus>
+      installUpdate: () => Promise<void>
+      subscribeUpdate: (listener: (status: AppUpdateStatus) => void) => () => void
       snapshot: () => Promise<LibrarySnapshot>
       call: (method: string, ...args: unknown[]) => Promise<unknown>
       subscribe: (listener: (snapshot: LibrarySnapshot) => void) => () => void

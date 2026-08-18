@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   providerByKindFromVault,
   type ProviderFieldKind
@@ -26,6 +26,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { ProviderFields } from "./ProviderFields"
 import { t } from "./uiText"
+import { updateStatusLabel } from "./UpdateBanner"
+import type { AppUpdateStatus } from "../../main/appUpdate.js"
 
 type Props = {
   snapshot: LibrarySnapshot
@@ -42,23 +44,33 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
   const [improve, setImprove] = useState(snapshot.prompts.improve)
   const [summary, setSummary] = useState(snapshot.prompts.summary)
   const [ask, setAsk] = useState(snapshot.prompts.ask)
+  const [version, setVersion] = useState("")
+  const [update, setUpdate] = useState<AppUpdateStatus>({ kind: "idle" })
   const languageItems = {
     fa: t(lang, "persian"),
     en: t(lang, "english")
   }
 
+  useEffect(() => {
+    if (!open) return
+    void window.doorei.appVersion().then(setVersion)
+    void window.doorei.updateStatus().then(setUpdate)
+    return window.doorei.subscribeUpdate(setUpdate)
+  }, [open])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden p-0 sm:max-w-lg">
+      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="px-5 pt-5 pb-3">
           <DialogTitle>{t(lang, "settings")}</DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="player" className="min-h-0 min-w-0 flex-1 gap-3 px-5">
-          <TabsList className="h-9 w-full shrink-0 bg-white/8">
+          <TabsList className="h-auto min-h-9 w-full shrink-0 flex-wrap bg-white/8">
             <TabsTrigger value="player">{t(lang, "settingsPlayer")}</TabsTrigger>
             <TabsTrigger value="language">{t(lang, "settingsLanguage")}</TabsTrigger>
             <TabsTrigger value="provider">{t(lang, "settingsProvider")}</TabsTrigger>
             <TabsTrigger value="prompts">{t(lang, "settingsPrompts")}</TabsTrigger>
+            <TabsTrigger value="app">{t(lang, "settingsApp")}</TabsTrigger>
           </TabsList>
           <TabsContent value="player" className={tabPanelClass}>
             <div className="overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/8">
@@ -196,6 +208,33 @@ export function SettingsDialog({ snapshot, lang, open, onOpenChange }: Props) {
                     })
                   }
                 />
+              </div>
+            </div>
+          </TabsContent>
+          <TabsContent value="app" className={tabPanelClass}>
+            <div className="grid gap-4">
+              <p className="text-sm text-muted-foreground">{t(lang, "updateHint")}</p>
+              <div className="overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/8">
+                <div className="flex items-center justify-between gap-3 border-b border-white/8 px-3 py-2.5 text-sm">
+                  <span>{t(lang, "appVersion")}</span>
+                  <span className="tabular-nums text-muted-foreground">{version || "…"}</span>
+                </div>
+                <div className="px-3 py-2.5 text-sm">{updateStatusLabel(lang, update)}</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  className="bg-white/5"
+                  disabled={update.kind === "checking" || update.kind === "downloading"}
+                  onClick={() => void window.doorei.checkForUpdate()}
+                >
+                  {t(lang, "updateCheck")}
+                </Button>
+                {update.kind === "ready" ? (
+                  <Button onClick={() => void window.doorei.installUpdate()}>
+                    {t(lang, "updateRestart")}
+                  </Button>
+                ) : null}
               </div>
             </div>
           </TabsContent>

@@ -15,9 +15,17 @@ pnpm dev
 
 ## Release
 
-Push a version tag to package macOS (dmg), Linux (AppImage), and Windows (nsis) installers and attach them to a GitHub Release:
+Push a version tag on `master` (by someone with write access) to package macOS (dmg), Linux (AppImage), and Windows (nsis) installers and attach them to a GitHub Release. The packaged app then checks GitHub for updates and downloads a slim package that omits the model pack:
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git checkout master
+git tag 0.1.0
+git push origin 0.1.0
 ```
+
+Optional signing secrets (Settings → Secrets and variables → Actions):
+
+- **macOS:** `CSC_LINK` (base64 Developer ID `.p12`), `CSC_KEY_PASSWORD`, and for notarization `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
+- **Windows:** `WIN_CSC_LINK` (base64 Authenticode `.pfx`), `WIN_CSC_KEY_PASSWORD`
+
+Without them the installers are unsigned. macOS in-app update needs a signed app.
