@@ -1,4 +1,4 @@
-import { autoUpdater } from "electron-updater"
+import { loadAutoUpdater } from "./loadAutoUpdater.js"
 import { applyAppUpdateEvent, type AppUpdateEvent, type AppUpdateStatus } from "./appUpdate.js"
 
 export type AppUpdateService = {
@@ -28,6 +28,7 @@ export function installAppUpdate(app: UpdateApp, send: (status: AppUpdateStatus)
     }
   }
 
+  const autoUpdater = loadAutoUpdater()
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.allowPrerelease = false
