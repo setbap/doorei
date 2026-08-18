@@ -1,15 +1,15 @@
 import type { Hit } from "./types.js"
 
 export function linkHitCitations(text: string, hits: Hit[] = []): string {
-  return text.replace(
-    /\[Hit:\s*([^\s\]]+)\s*@\s*([\d.]+)s?\]/gi,
-    (_match, videoId: string, seconds: string) => {
-      const stamp = formatStamp(Number(seconds))
-      const target = resolveHitTarget(videoId, Number(seconds), hits)
-      if (!target) return stamp
-      return `[${stamp}](#hit/${encodeURIComponent(target.videoId)}/${target.seconds})`
-    }
-  )
+  return text
+    .replace(/(\s*)\[Hit:\s*([^\]]*)\](\s*)/gi, (_match, lead: string, body: string, trail: string) => {
+      const parsed = parseHitCitation(body)
+      const target = parsed ? resolveHitTarget(parsed.videoId, parsed.seconds, hits) : null
+      if (!target) return lead && trail ? " " : lead || trail
+      const stamp = formatStamp(target.seconds)
+      return `${lead}[${stamp}](#hit/${encodeURIComponent(target.videoId)}/${target.seconds})${trail}`
+    })
+    .replace(/ +([.!?،؛])/g, "$1")
 }
 
 export function resolveHit(
@@ -24,6 +24,17 @@ export function resolveHit(
     return resolveHitTarget(fromHref.videoId, fromHref.seconds, hits)
   }
   return resolveHitTarget(fromHref?.videoId ?? "", seconds, hits)
+}
+
+function parseHitCitation(body: string): { videoId: string; seconds: number } | null {
+  const trimmed = body.trim()
+  const match =
+    trimmed.match(/^(\S+)\s*@\s*([\d.]+)s?\b/i) ?? trimmed.match(/^(\S+)\s*[,،]\s*([\d.]+)s?\b/i)
+  if (!match) return null
+  const videoId = match[1] ?? ""
+  const seconds = Number(match[2])
+  if (!videoId || !Number.isFinite(seconds)) return null
+  return { videoId, seconds }
 }
 
 function resolveHitTarget(
@@ -53,11 +64,6 @@ function resolveHitTarget(
     return { videoId: byPrefix.videoId, seconds: byPrefix.startSeconds }
   }
 
-  const byTime = list.find(timeMatch)
-  if (byTime?.startSeconds != null) {
-    return { videoId: byTime.videoId, seconds: byTime.startSeconds }
-  }
-
   return null
 }
 
@@ -66,10 +72,10 @@ function parseHitHref(href: string): { videoId: string; seconds: number } | null
   const body = hashIndex >= 0 ? href.slice(hashIndex + 1) : href.replace(/^#/, "")
   const parts = body.split("/")
   if (parts[0] !== "hit" || parts.length < 3) return null
-  const videoId = decodeURIComponent(parts[1] ?? "")
+  const parsedId = decodeURIComponent(parts[1] ?? "")
   const seconds = Number(parts[2])
-  if (!videoId || !Number.isFinite(seconds)) return null
-  return { videoId, seconds }
+  if (!parsedId || !Number.isFinite(seconds)) return null
+  return { videoId: parsedId, seconds }
 }
 
 export function parseStamp(label: string): number | null {

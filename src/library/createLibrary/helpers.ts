@@ -1,6 +1,6 @@
 import { jsonrepair } from "jsonrepair"
 import { formatStamp } from "../hitLinks.js"
-import { DEFAULT_PROMPTS, LEGACY_IMPROVE_PROMPT } from "../defaults.js"
+import { DEFAULT_PROMPTS, LEGACY_ASK_PROMPT, LEGACY_IMPROVE_PROMPT } from "../defaults.js"
 import type { CaptionSegment } from "../types.js"
 import type { LibraryState } from "../persist/index.js"
 
@@ -32,6 +32,9 @@ export function migratePrompts(
   const prompts = { ...DEFAULT_PROMPTS, ...loaded }
   if (!loaded?.improve || loaded.improve === LEGACY_IMPROVE_PROMPT) {
     prompts.improve = DEFAULT_PROMPTS.improve
+  }
+  if (!loaded?.ask || loaded.ask === LEGACY_ASK_PROMPT) {
+    prompts.ask = DEFAULT_PROMPTS.ask
   }
   return prompts
 }
