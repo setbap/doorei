@@ -34,23 +34,31 @@ export function recallCaption(state: LibraryState, videoId: string): Caption | n
   return state.improvedCaptions[videoId] ?? state.captions[videoId] ?? null
 }
 
-export function videosInScope(state: LibraryState, scope: SearchScope): VideoRecord[] {
+export function videosInScope(
+  state: LibraryState,
+  scope: SearchScope,
+  videoIds?: string[]
+): VideoRecord[] {
+  let videos: VideoRecord[]
   if (scope === "video") {
     const video = state.videos.find((item) => item.id === state.selectedVideoId)
-    return video ? [video] : []
-  }
-  if (scope === "session") {
+    videos = video ? [video] : []
+  } else if (scope === "session") {
     const video = state.videos.find((item) => item.id === state.selectedVideoId)
-    if (!video) return []
-    return state.videos.filter((item) => item.sessionId === video.sessionId)
+    videos = video ? state.videos.filter((item) => item.sessionId === video.sessionId) : []
+  } else if (!state.selectedCourseId) {
+    videos = []
+  } else {
+    const sessionIds = new Set(
+      state.sessions
+        .filter((session) => session.courseId === state.selectedCourseId)
+        .map((session) => session.id)
+    )
+    videos = state.videos.filter((video) => sessionIds.has(video.sessionId))
   }
-  if (!state.selectedCourseId) return []
-  const sessionIds = new Set(
-    state.sessions
-      .filter((session) => session.courseId === state.selectedCourseId)
-      .map((session) => session.id)
-  )
-  return state.videos.filter((video) => sessionIds.has(video.sessionId))
+  if (!videoIds || videoIds.length === 0) return videos
+  const allowed = new Set(videoIds)
+  return videos.filter((video) => allowed.has(video.id))
 }
 
 export function neighborVideoId(

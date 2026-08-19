@@ -46,7 +46,7 @@ export type PlayerSettings = {
 }
 
 export type HitKind = "caption" | "note"
-export type HitOrigin = "video" | "session" | "course"
+export type HitOrigin = "video" | "session" | "course" | "mention"
 export type ConversationTurnKind = "user" | "assistant" | "compact"
 
 export type Hit = {
@@ -57,6 +57,13 @@ export type Hit = {
   kind: HitKind
   score: number
   origin?: HitOrigin
+}
+
+export type AskMentionKind = "video" | "session"
+
+export type AskMention = {
+  kind: AskMentionKind
+  id: string
 }
 
 export type AskAnswer = {
@@ -243,7 +250,7 @@ export type Library = {
   editNote(id: string, text: string): Promise<void>
 
   search(input: { text: string; scope: SearchScope }): Promise<Hit[]>
-  ask(input: { question: string }): Promise<AskAnswer>
+  ask(input: { question: string; mentions?: AskMention[] }): Promise<AskAnswer>
   createConversation(): Promise<string>
   selectConversation(id: string): Promise<void>
   renameConversation(id: string, title: string): Promise<void>

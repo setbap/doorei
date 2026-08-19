@@ -547,4 +547,104 @@ describe("Ask context budget", () => {
   })
 })
 
+describe("Ask mentions", () => {
+  test("mentioning Videos packs those Captions even when another Video is selected", async () => {
+    const { providerClient, prompts } = recordingProvider()
+    const media = memoryMedia({
+      existing: ["/a.mp4", "/b.mp4", "/c.mp4"],
+      sidecars: { "/a.mp4": "/a.srt", "/b.mp4": "/b.srt", "/c.mp4": "/c.srt" },
+      files: {
+        "/a.srt": `1\n00:00:01,000 --> 00:00:02,000\nReact hooks run after paint\n`,
+        "/b.srt": `1\n00:00:01,000 --> 00:00:02,000\nReact routing uses the router\n`,
+        "/c.srt": `1\n00:00:01,000 --> 00:00:02,000\nReact redux holds state\n`
+      }
+    })
+    const { library } = await unlockedLibrary({ media, providerClient })
+    await library.createCourse("C")
+    const week1 = await library.createSession({ name: "Week 1" })
+    const week2 = await library.createSession({ name: "Week 2" })
+    const [hooksId, routingId] = await library.addVideos({
+      sessionId: week1,
+      paths: ["/a.mp4", "/b.mp4"]
+    })
+    const [reduxId] = await library.addVideos({ sessionId: week2, paths: ["/c.mp4"] })
+    await library.selectVideo(hooksId)
+    await library.configureProvider({ kind: "openai", url: "http://x/v1" })
+    await library.ask({
+      question: "what does routing use?",
+      mentions: [{ kind: "video", id: routingId }]
+    })
+    const packed = JSON.parse(prompts[0]!.prompt) as {
+      question: string
+      mentions: { kind: string; id: string; name: string }[]
+      hits: {
+        video: unknown[]
+        session: unknown[]
+        course: unknown[]
+        mention: { videoId: string; origin: string; text: string }[]
+      }
+    }
+    expect(packed.question).toBe("what does routing use?")
+    expect(packed.mentions).toEqual([
+      { kind: "video", id: routingId, name: "b.mp4", path: "Week 1" }
+    ])
+    expect(packed.hits.video).toEqual([])
+    expect(packed.hits.mention.every((hit) => hit.videoId === routingId)).toBe(true)
+    expect(packed.hits.mention.every((hit) => hit.origin === "mention")).toBe(true)
+    expect(packed.hits.mention.some((hit) => hit.text.includes("routing"))).toBe(true)
+    expect(packed.hits.mention.some((hit) => hit.videoId === reduxId)).toBe(false)
+    expect(library.snapshot().conversationTurns[0]?.text).toBe("@b.mp4 what does routing use?")
+  })
+
+  test("mentioning a Session includes every Video in that Session", async () => {
+    const { providerClient, prompts } = recordingProvider()
+    const media = memoryMedia({
+      existing: ["/a.mp4", "/b.mp4", "/c.mp4"],
+      sidecars: { "/a.mp4": "/a.srt", "/b.mp4": "/b.srt", "/c.mp4": "/c.srt" },
+      files: {
+        "/a.srt": `1\n00:00:01,000 --> 00:00:02,000\nReact hooks run after paint\n`,
+        "/b.srt": `1\n00:00:01,000 --> 00:00:02,000\nReact routing uses the router\n`,
+        "/c.srt": `1\n00:00:01,000 --> 00:00:02,000\nReact redux holds state\n`
+      }
+    })
+    const { library } = await unlockedLibrary({ media, providerClient })
+    await library.createCourse("C")
+    const week1 = await library.createSession({ name: "Week 1" })
+    const week2 = await library.createSession({ name: "Week 2" })
+    const [hooksId] = await library.addVideos({ sessionId: week1, paths: ["/a.mp4", "/b.mp4"] })
+    const [reduxId] = await library.addVideos({ sessionId: week2, paths: ["/c.mp4"] })
+    await library.selectVideo(reduxId)
+    await library.configureProvider({ kind: "openai", url: "http://x/v1" })
+    await library.ask({
+      question: "what is covered here?",
+      mentions: [{ kind: "session", id: week1 }]
+    })
+    const packed = JSON.parse(prompts[0]!.prompt) as {
+      mentions: { kind: string; name: string }[]
+      hits: { mention: { videoId: string; text: string }[] }
+    }
+    expect(packed.mentions).toEqual([{ kind: "session", id: week1, name: "Week 1", path: "" }])
+    const mentionedIds = new Set(packed.hits.mention.map((hit) => hit.videoId))
+    expect(mentionedIds.has(hooksId)).toBe(true)
+    expect(mentionedIds.has(reduxId)).toBe(false)
+    expect(packed.hits.mention.some((hit) => hit.text.includes("hooks"))).toBe(true)
+    expect(packed.hits.mention.some((hit) => hit.text.includes("routing"))).toBe(true)
+  })
+
+  test("a question that does not match Caption words still attaches mentioned Caption segments", async () => {
+    const { providerClient, prompts } = recordingProvider()
+    const { library } = await courseWithLesson(providerClient)
+    const videoId = library.snapshot().selectedVideoId!
+    await library.ask({
+      question: "what is the key insight?",
+      mentions: [{ kind: "video", id: videoId }]
+    })
+    const packed = JSON.parse(prompts[0]!.prompt) as {
+      hits: { mention: { text: string; origin: string }[] }
+    }
+    expect(packed.hits.mention.some((hit) => hit.text.includes("useEffect"))).toBe(true)
+    expect(packed.hits.mention[0]?.origin).toBe("mention")
+  })
+})
+
 

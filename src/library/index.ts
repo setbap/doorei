@@ -9,6 +9,15 @@ export {
 export { createLibrary } from "./createLibrary/index.js"
 export { DEFAULT_PROMPTS } from "./defaults.js"
 export {
+  mentionableItems,
+  filterMentionable,
+  activeMention,
+  resolveMentionedVideoIds,
+  resolveMentions,
+  userTurnText,
+  highlightRanges
+} from "./askMentions.js"
+export {
   COURSE_NAME_MAX,
   COURSE_NAME_MIN,
   COURSE_PROMPT_MAX,
@@ -23,6 +32,8 @@ export type {
   Activity,
   AppLanguage,
   AskAnswer,
+  AskMention,
+  AskMentionKind,
   Caption,
   CaptionSegment,
   ConversationRecord,
