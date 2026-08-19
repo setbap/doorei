@@ -30,7 +30,7 @@ export function AskMentionMenu({ items, query, selectedIndex, lang, onHover, onS
   }
 
   return (
-    <div role="listbox" aria-label={t(lang, "askMention")} className="max-h-72 overflow-y-auto p-1">
+    <div role="listbox" aria-label={t(lang, "askMention")} className="max-h-96 overflow-y-auto p-1">
       {items.map((item, index) => {
         const selected = index === selectedIndex
         const Icon = item.kind === "session" ? Folder : FileVideo
