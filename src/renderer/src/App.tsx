@@ -34,7 +34,7 @@ export function App() {
         <UpdateBanner lang={snapshot?.appLanguage ?? null} />
         <div className="min-h-0 flex-1">
           {!snapshot ? (
-            <div className="flex h-full items-center justify-center bg-background text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-muted-foreground">
               Doorei
             </div>
           ) : !snapshot.usable ? (

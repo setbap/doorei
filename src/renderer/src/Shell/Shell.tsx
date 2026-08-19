@@ -11,7 +11,7 @@ import { playAfterMediaReady } from "../../../library/playerPlayback.js"
 import type { AppLanguage, LibrarySnapshot, SearchScope, SpokenLanguage } from "../../../library/types.js"
 import { Button } from "@/components/ui/button"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
-import { AppBackdrop } from "../AppBackdrop"
+import { AppBackdrop, isNativeGlass } from "../AppBackdrop"
 import { SettingsDialog } from "../SettingsDialog"
 import { ToolPane } from "../ToolPane"
 import { t } from "../uiText"
@@ -51,7 +51,7 @@ export function Shell({ snapshot }: Props) {
   const [shellLayout] = useState(loadShellLayout)
   const [libraryOpen, setLibraryOpen] = useState(shellLayout.library > 1)
   const [toolsOpen, setToolsOpen] = useState(shellLayout.tools > 1)
-  const nativeGlass = window.doorei.platform === "darwin"
+  const nativeGlass = isNativeGlass()
   const selected = snapshot.videos.find((video) => video.id === snapshot.selectedVideoId)
   const courseSessions = snapshot.sessions.filter(
     (session) => session.courseId === snapshot.selectedCourseId

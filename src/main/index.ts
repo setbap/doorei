@@ -2,6 +2,8 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, protocol, shell } from "electron"
 import { applyAppIdentity, migrateUnpackagedLibrary } from "./appIdentity.js"
+import type { AppUpdateStatus } from "./appUpdate.js"
+import { startDevBrowserBridge } from "./devBrowserBridge.js"
 import { installAppUpdate } from "./installAppUpdate.js"
 import { mediaResponse, toMediaUrl } from "./mediaProtocol.js"
 import { startMediaServer } from "./mediaServer.js"
@@ -173,52 +175,94 @@ app.whenReady().then(async () => {
     mainWindow?.webContents.send("library:changed", snap)
   })
 
-  ipcMain.handle("library:snapshot", () => library.snapshot())
-  ipcMain.handle("library:call", async (_event, method: string, args: unknown[]) => {
+  async function callLibrary(method: string, args: unknown[]): Promise<unknown> {
     if (!LIBRARY_METHODS.has(method)) {
       throw new Error(`Unknown Library method: ${method}`)
     }
     const target = library[method as keyof Library] as (...params: unknown[]) => unknown
     return await target(...args)
-  })
-  ipcMain.handle("media:url", (_event, filePath: string) => toMediaUrl(filePath, media.origin))
-  ipcMain.handle("dialog:videos", async () => {
+  }
+
+  async function pickVideos(): Promise<string[]> {
     const result = await dialog.showOpenDialog({
       properties: ["openFile", "multiSelections"],
       filters: [{ name: "Video", extensions: ["mp4", "mkv", "webm", "mov", "m4v", "avi"] }]
     })
     return result.canceled ? [] : result.filePaths
-  })
-  ipcMain.handle("dialog:folder", async () => {
+  }
+
+  async function pickFolderVideos(): Promise<string[]> {
     const result = await dialog.showOpenDialog({ properties: ["openDirectory"] })
     if (result.canceled || !result.filePaths[0]) return []
     return videoPathsInFolder(result.filePaths[0])
-  })
-  ipcMain.handle("dialog:file", async () => {
+  }
+
+  async function pickFile(): Promise<string | null> {
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
       filters: [{ name: "Video", extensions: ["mp4", "mkv", "webm", "mov", "m4v", "avi"] }]
     })
     return result.filePaths[0] ?? null
-  })
-  ipcMain.handle("dialog:directory", async () => {
+  }
+
+  async function pickDirectory(): Promise<string | null> {
     const result = await dialog.showOpenDialog({ properties: ["openDirectory"] })
     return result.filePaths[0] ?? null
-  })
-  ipcMain.handle("shell:open-url", async (_event, url: string) => {
+  }
+
+  async function openUrl(url: string): Promise<void> {
     const parsed = new URL(url)
     if (parsed.protocol !== "https:" || parsed.hostname !== "huggingface.co") {
       throw new Error("Blocked URL")
     }
     await shell.openExternal(parsed.href)
-  })
+  }
+
+  ipcMain.handle("library:snapshot", () => library.snapshot())
+  ipcMain.handle("library:call", (_event, method: string, args: unknown[]) => callLibrary(method, args))
+  ipcMain.handle("media:url", (_event, filePath: string) => toMediaUrl(filePath, media.origin))
+  ipcMain.handle("dialog:videos", pickVideos)
+  ipcMain.handle("dialog:folder", pickFolderVideos)
+  ipcMain.handle("dialog:file", pickFile)
+  ipcMain.handle("dialog:directory", pickDirectory)
+  ipcMain.handle("shell:open-url", (_event, url: string) => openUrl(url))
+  const updateListeners = new Set<(status: AppUpdateStatus) => void>()
   const updater = installAppUpdate(app, (status) => {
     mainWindow?.webContents.send("update:changed", status)
+    for (const listener of updateListeners) listener(status)
   })
   ipcMain.handle("app:version", () => app.getVersion())
   ipcMain.handle("update:status", () => updater.status())
   ipcMain.handle("update:check", () => updater.check())
   ipcMain.handle("update:install", () => updater.install())
+
+  if (!app.isPackaged) {
+    try {
+      await startDevBrowserBridge({
+        snapshot: () => library.snapshot(),
+        subscribeSnapshot: (listener) => library.subscribe(() => listener(library.snapshot())),
+        call: callLibrary,
+        appVersion: () => app.getVersion(),
+        updateStatus: () => updater.status(),
+        checkForUpdate: () => updater.check(),
+        installUpdate: () => updater.install(),
+        subscribeUpdate: (listener) => {
+          updateListeners.add(listener)
+          return () => {
+            updateListeners.delete(listener)
+          }
+        },
+        mediaUrl: (filePath) => toMediaUrl(filePath, media.origin),
+        pickVideos,
+        pickFolderVideos,
+        pickFile,
+        pickDirectory,
+        openUrl
+      })
+    } catch (error) {
+      console.error("Dev browser bridge failed", error)
+    }
+  }
 
   createMainWindow()
   void updater.check()

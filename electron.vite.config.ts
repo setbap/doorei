@@ -33,7 +33,22 @@ export default defineConfig({
           plugins: [["babel-plugin-react-compiler", { panicThreshold: "none" }]]
         }
       }),
-      tailwindcss()
+      tailwindcss(),
+      {
+        name: "dev-renderer-csp",
+        apply: "serve",
+        transformIndexHtml(html) {
+          return html
+            .replace(
+              "script-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'"
+            )
+            .replace(
+              "connect-src 'self'",
+              "connect-src 'self' ws: wss: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*"
+            )
+        }
+      }
     ]
   }
 })

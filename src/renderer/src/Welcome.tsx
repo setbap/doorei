@@ -14,7 +14,7 @@ import { MODEL_HUB_LINKS } from "../../library/models.js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { AppBackdrop } from "./AppBackdrop";
+import { AppBackdrop, isNativeGlass } from "./AppBackdrop";
 import { ProviderFields } from "./ProviderFields";
 import { t } from "./uiText";
 
@@ -40,7 +40,7 @@ export function Welcome({ snapshot }: Props) {
   const [byKind, setByKind] = useState(() =>
     providerByKindFromVault(snapshot.providerVault)
   );
-  const nativeGlass = window.doorei.platform === "darwin";
+  const nativeGlass = isNativeGlass();
 
   const allComplete = snapshot.requiredModels.every((model) => model.complete);
   const models = useMemo(

@@ -1,8 +1,12 @@
 import { StrictMode, useEffect } from "react"
 import { createRoot } from "react-dom/client"
 import { App } from "./App"
+import { installBrowserDoorei } from "./browserDoorei"
 import { applySelectAll, blockPageZoom, handleSelectAllKey } from "./selectAll"
 import "./index.css"
+
+installBrowserDoorei()
+document.documentElement.dataset.platform = window.doorei.platform
 
 function DesktopRoot() {
   useEffect(() => {

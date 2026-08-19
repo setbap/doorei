@@ -1,7 +1,12 @@
-// Full-window backdrop shared by Welcome and the main Shell. On macOS the window
-// is transparent with native vibrancy, so we only lay a faint tint over it; on
-// every other platform we paint the glassy noise gradient. Panels above render
-// transparent so this shows through.
+// Full-window backdrop shared by Welcome and the main Shell. On macOS Electron
+// the window is transparent with native vibrancy, so we only lay a faint tint
+// over it. In the browser and on every other platform we paint the glassy noise
+// gradient. Panels above render transparent so this shows through.
+export function isNativeGlass(): boolean {
+  if (document.documentElement.dataset.runtime !== "electron") return false
+  return window.doorei.platform === "darwin"
+}
+
 export function AppBackdrop({ nativeGlass }: { nativeGlass: boolean }) {
   if (nativeGlass) {
     return <div className="pointer-events-none absolute inset-0 bg-black/15" />

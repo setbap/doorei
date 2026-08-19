@@ -204,6 +204,32 @@
     -webkit-user-select: none;
   }
 
+  html[data-runtime="browser"] {
+    background:
+      radial-gradient(ellipse 80% 55% at 18% 6%, rgb(72 72 72 / 42%), transparent 58%),
+      radial-gradient(ellipse 70% 50% at 92% 96%, rgb(0 0 0 / 88%), transparent 52%),
+      linear-gradient(165deg, #2c2c2c 0%, #171717 46%, #0a0a0a 100%);
+  }
+
+  html[data-runtime="browser"]::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: url("./assets/noise.svg");
+    background-size: 140px 140px;
+    mix-blend-mode: overlay;
+    opacity: 0.78;
+  }
+
+  html[data-runtime="browser"] body,
+  html[data-runtime="browser"] #root {
+    position: relative;
+    z-index: 1;
+    background: transparent;
+  }
+
   input,
   textarea,
   [contenteditable="true"],
