@@ -125,7 +125,7 @@ export function createLibrary(deps: LibraryDeps): Library {
     )
   }
   core.recallCaption = (videoId) => recallCaption(state, videoId)
-  core.videosInScope = (scope) => videosInScope(state, scope)
+  core.videosInScope = (scope, videoIds) => videosInScope(state, scope, videoIds)
   core.neighborVideoId = (fromId, step) => neighborVideoId(state, fromId, step)
   core.collectHits = (input) => collectHits(core, input)
 

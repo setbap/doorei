@@ -30,9 +30,9 @@ export type LibraryCore = {
   finishMissingSummary(videoId: string): void
   startNextMissingSummary(): void
   videosNeedingSummary(): string[]
-  collectHits(input: { text: string; scope: SearchScope }): Promise<Hit[]>
+  collectHits(input: { text: string; scope: SearchScope; videoIds?: string[] }): Promise<Hit[]>
   activeConversation(): StoredConversation | null
   neighborVideoId(fromId: string | null, step: 1 | -1): string | null
   recallCaption(videoId: string): Caption | null
-  videosInScope(scope: SearchScope): VideoRecord[]
+  videosInScope(scope: SearchScope, videoIds?: string[]): VideoRecord[]
 }

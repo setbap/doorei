@@ -5,6 +5,7 @@ import {
   COURSE_PROMPT_MIN,
   DEFAULT_PROMPTS,
   LEGACY_ASK_PROMPT,
+  PREVIOUS_ASK_PROMPT,
   LEGACY_IMPROVE_PROMPT
 } from "./defaults.js"
 import type { LibraryState } from "./persist/types.js"
@@ -28,7 +29,7 @@ export function migratePrompts(loaded: Partial<CoursePrompts> | undefined): Cour
   if (!loaded?.improve || loaded.improve === LEGACY_IMPROVE_PROMPT) {
     prompts.improve = DEFAULT_PROMPTS.improve
   }
-  if (!loaded?.ask || loaded.ask === LEGACY_ASK_PROMPT) {
+  if (!loaded?.ask || loaded.ask === LEGACY_ASK_PROMPT || loaded.ask === PREVIOUS_ASK_PROMPT) {
     prompts.ask = DEFAULT_PROMPTS.ask
   }
   return prompts

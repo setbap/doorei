@@ -3,8 +3,16 @@ import {
   askTokenCount,
   historyForPack,
   packAskHits,
-  sessionSummarySnippets
+  sessionSummarySnippets,
+  summarySnippets
 } from "../askPack.js"
+import {
+  mentionableItems,
+  mentionCaptionHits,
+  resolveMentionedVideoIds,
+  resolveMentions,
+  userTurnText
+} from "../askMentions.js"
 import { settingsForCourse } from "../courseSettings.js"
 import type { ConversationTurn, Hit, Library } from "../types.js"
 import type { LibraryCore } from "./core.js"
@@ -69,20 +77,48 @@ export function recallApi(core: LibraryCore): Pick<
       const session = video
         ? (state.sessions.find((item) => item.id === video.sessionId) ?? null)
         : null
-      const allHits = await core.collectHits({ text: input.question, scope: "course" })
-      const { videoHits, sessionHits, courseHits, packedHits } = packAskHits(
+      const mentionList = resolveMentions(
+        input.mentions ?? [],
+        mentionableItems({
+          selectedCourseId: courseId,
+          sessions: state.sessions,
+          videos: state.videos
+        })
+      )
+      const mentionedVideoIds = resolveMentionedVideoIds(mentionList, state.videos)
+      const allHits = await core.collectHits({
+        text: input.question,
+        scope: "course",
+        videoIds: mentionedVideoIds.length > 0 ? mentionedVideoIds : undefined
+      })
+      const packedBuckets = packAskHits(
         allHits,
         video?.id ?? null,
-        video?.sessionId ?? null
+        video?.sessionId ?? null,
+        mentionedVideoIds
       )
+      const { videoHits, sessionHits, courseHits } = packedBuckets
+      let packedHits = packedBuckets.packedHits
+      let mentionHits = packedBuckets.mentionHits
+      if (mentionedVideoIds.length > 0) {
+        const captions: Record<string, ReturnType<LibraryCore["recallCaption"]>> = {}
+        for (const videoId of mentionedVideoIds) captions[videoId] = core.recallCaption(videoId)
+        const extra = mentionCaptionHits(mentionedVideoIds, state.videos, captions, mentionHits)
+        mentionHits = [...mentionHits, ...extra]
+        packedHits = mentionHits
+      }
       const currentVideoSummary = video ? (state.summaries[video.id] ?? null) : null
       const currentVideoSummaryMissing = Boolean(video) && currentVideoSummary === null
-      const sessionSummaries = sessionSummarySnippets(sessionHits, state.summaries)
+      const sessionSummaries =
+        mentionedVideoIds.length > 0
+          ? summarySnippets(mentionedVideoIds, state.summaries)
+          : sessionSummarySnippets(sessionHits, state.summaries)
       const existing = core.activeConversation()
       const course = settingsForCourse(state, courseId)
       const outputLanguage = course.outputLanguage
       const budget = state.settings.askContextBudgetTokens ?? 24_000
       const system = course.prompts.ask
+      const displayQuestion = userTurnText(input.question, mentionList)
       const pack = (turns: ConversationTurn[]): string =>
         JSON.stringify({
           outputLanguage,
@@ -91,7 +127,8 @@ export function recallApi(core: LibraryCore): Pick<
           currentVideoSummary,
           currentVideoSummaryMissing,
           sessionSummaries,
-          hits: { video: videoHits, session: sessionHits, course: courseHits },
+          mentions: mentionList,
+          hits: { video: videoHits, session: sessionHits, course: courseHits, mention: mentionHits },
           history: historyForPack(turns),
           question: input.question
         })
@@ -154,7 +191,7 @@ export function recallApi(core: LibraryCore): Pick<
         if (!conversation.title) conversation.title = titleFromQuestion(input.question)
         if (compactTurn) conversation.turns = [compactTurn]
         conversation.turns.push(
-          { id: id("trn"), kind: "user", text: input.question, hits: [] },
+          { id: id("trn"), kind: "user", text: displayQuestion, hits: [] },
           { id: id("trn"), kind: "assistant", text, hits: cited }
         )
         conversation.updatedAt = Date.now()

@@ -25,8 +25,25 @@ export function historyForPack(
 export function packAskHits(
   allHits: Hit[],
   videoId: string | null,
-  sessionId: string | null
-): { videoHits: Hit[]; sessionHits: Hit[]; courseHits: Hit[]; packedHits: Hit[] } {
+  sessionId: string | null,
+  mentionedVideoIds: string[] = []
+): {
+  videoHits: Hit[]
+  sessionHits: Hit[]
+  courseHits: Hit[]
+  mentionHits: Hit[]
+  packedHits: Hit[]
+} {
+  if (mentionedVideoIds.length > 0) {
+    const mentionHits = packMentionHits(allHits, mentionedVideoIds)
+    return {
+      videoHits: [],
+      sessionHits: [],
+      courseHits: [],
+      mentionHits,
+      packedHits: mentionHits
+    }
+  }
   const videoHits = takeHits(
     videoId
       ? allHits
@@ -51,7 +68,30 @@ export function packAskHits(
       : allHits.map((hit) => ({ ...hit, origin: "course" as const })),
     6
   )
-  return { videoHits, sessionHits, courseHits, packedHits: [...videoHits, ...sessionHits, ...courseHits] }
+  return {
+    videoHits,
+    sessionHits,
+    courseHits,
+    mentionHits: [],
+    packedHits: [...videoHits, ...sessionHits, ...courseHits]
+  }
+}
+
+const MENTION_HITS_PER_VIDEO = 12
+
+function packMentionHits(allHits: Hit[], mentionedVideoIds: string[]): Hit[] {
+  const packed: Hit[] = []
+  for (const videoId of mentionedVideoIds) {
+    packed.push(
+      ...takeHits(
+        allHits
+          .filter((hit) => hit.videoId === videoId)
+          .map((hit) => ({ ...hit, origin: "mention" as const })),
+        MENTION_HITS_PER_VIDEO
+      )
+    )
+  }
+  return packed
 }
 
 export function sessionSummarySnippets(
@@ -59,7 +99,18 @@ export function sessionSummarySnippets(
   summaries: Record<string, string>
 ): { videoId: string; text: string }[] {
   if (sessionHits.length === 0) return []
-  return [...new Set(sessionHits.map((hit) => hit.videoId))].slice(0, 8).flatMap((videoId) => {
+  return summarySnippets(
+    sessionHits.map((hit) => hit.videoId),
+    summaries
+  )
+}
+
+export function summarySnippets(
+  videoIds: string[],
+  summaries: Record<string, string>,
+  limit = 8
+): { videoId: string; text: string }[] {
+  return [...new Set(videoIds)].slice(0, limit).flatMap((videoId) => {
     const text = summaries[videoId]
     return text ? [{ videoId, text }] : []
   })

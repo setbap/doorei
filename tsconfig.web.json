@@ -31,6 +31,7 @@
     "src/library/textDirection.ts",
     "src/library/defaults.ts",
     "src/library/hitLinks.ts",
+    "src/library/askMentions.ts",
     "src/library/markdownTables.ts",
     "src/library/playerPlayback.ts",
     "src/library/playerKeys.ts",
