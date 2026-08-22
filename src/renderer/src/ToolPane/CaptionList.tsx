@@ -1,28 +1,27 @@
 import { useEffect, useRef } from "react"
 import type { AppLanguage, CaptionSegment } from "../../../library/types.js"
+import { activeCaptionIndex } from "../../../library/captionLookup.js"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { textDirection } from "../../../library/textDirection.js"
 import { t } from "../uiText"
+import { usePlaybackTime } from "../playbackClock"
 
 export function CaptionList({
   lang,
   segments,
-  currentTime,
   onSeek
 }: {
   lang: AppLanguage
   segments: CaptionSegment[]
-  currentTime: number
   onSeek: (seconds: number | null) => void
 }) {
-  const activeIndex = segments.findIndex(
-    (segment) => currentTime >= segment.startSeconds && currentTime <= segment.endSeconds
-  )
+  const currentTime = usePlaybackTime()
+  const activeIndex = activeCaptionIndex(segments, currentTime)
   const activeRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })
+    activeRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" })
   }, [activeIndex])
 
   if (segments.length === 0) {
@@ -35,7 +34,10 @@ export function CaptionList({
         {segments.map((segment, index) => {
           const active = index === activeIndex
           return (
-            <li key={`${segment.startSeconds}-${index}`}>
+            <li
+              key={`${segment.startSeconds}-${index}`}
+              className="[content-visibility:auto] [contain-intrinsic-size:auto_3.25rem]"
+            >
               <button
                 type="button"
                 ref={active ? activeRef : undefined}

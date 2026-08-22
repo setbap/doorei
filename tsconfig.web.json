@@ -36,6 +36,8 @@
     "src/library/playerPlayback.ts",
     "src/library/playerKeys.ts",
     "src/library/courseProgress.ts",
+    "src/library/captionLookup.ts",
+    "src/library/jobIndex.ts",
     "src/main/selectAll.ts",
     "src/main/appUpdate.ts"
   ]

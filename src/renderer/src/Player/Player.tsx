@@ -256,7 +256,7 @@ export function Player({
         src={src}
         playsInline
         autoPlay={playAfterSelect}
-        preload="auto"
+        preload="metadata"
         onClick={onVideoClick}
         onError={() => setPlayError(t(lang, "playError"))}
         onLoadedMetadata={(event) => {

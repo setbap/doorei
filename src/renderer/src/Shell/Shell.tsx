@@ -8,7 +8,7 @@ import {
 } from "lucide-react"
 import { usePanelRef } from "react-resizable-panels"
 import { playAfterMediaReady } from "../../../library/playerPlayback.js"
-import type { AppLanguage, LibrarySnapshot, SearchScope, SpokenLanguage } from "../../../library/types.js"
+import type { AppLanguage, LibrarySnapshot, SpokenLanguage } from "../../../library/types.js"
 import { Button } from "@/components/ui/button"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { AppBackdrop, isNativeGlass } from "../AppBackdrop"
@@ -16,6 +16,7 @@ import { SettingsDialog } from "../SettingsDialog"
 import { ToolPane } from "../ToolPane"
 import { t } from "../uiText"
 import { Hint } from "../Hint"
+import { resetPlaybackTime } from "../playbackClock"
 import { LibraryAside } from "./LibraryAside"
 import { CourseProgress } from "./CourseProgress"
 import { loadComposerOpen, loadShellLayout, saveComposerOpen, saveShellLayout } from "./layout"
@@ -33,9 +34,6 @@ export function Shell({ snapshot }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [actionPanelOpen, setActionPanelOpen] = useState(false)
   const [composerOpen, setComposerOpen] = useState(loadComposerOpen)
-  const [query, setQuery] = useState("")
-  const [question, setQuestion] = useState("")
-  const [scope, setScope] = useState<SearchScope>("video")
   const [note, setNote] = useState("")
   const [stampOn, setStampOn] = useState(true)
   const [media, setMedia] = useState<{ id: string; url: string } | null>(null)
@@ -45,7 +43,6 @@ export function Shell({ snapshot }: Props) {
   const playAfterSelectId = useRef<string | null>(null)
   const lastPosWrite = useRef(0)
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [playbackTime, setPlaybackTime] = useState(0)
   const libraryPanelRef = usePanelRef()
   const toolsPanelRef = usePanelRef()
   const [shellLayout] = useState(loadShellLayout)
@@ -67,7 +64,7 @@ export function Shell({ snapshot }: Props) {
   }, [snapshot.spokenLanguageDefault, snapshot.selectedCourseId])
 
   useEffect(() => {
-    setPlaybackTime(selected?.playbackPositionSeconds ?? 0)
+    resetPlaybackTime(selected?.playbackPositionSeconds ?? 0)
   }, [selected?.id])
 
   useEffect(() => {
@@ -234,7 +231,6 @@ export function Shell({ snapshot }: Props) {
               setNote={setNote}
               stampOn={stampOn}
               setStampOn={setStampOn}
-              setPlaybackTime={setPlaybackTime}
               lastPosWrite={lastPosWrite}
               setPrompt={setPrompt}
               selectAndPlay={selectAndPlay}
@@ -256,19 +252,11 @@ export function Shell({ snapshot }: Props) {
               <ToolPane
                 snapshot={snapshot}
                 lang={lang}
-                query={query}
-                setQuery={setQuery}
-                question={question}
-                setQuestion={setQuestion}
-                scope={scope}
-                setScope={setScope}
                 onSeek={(seconds) => {
                   if (videoRef.current && seconds != null) {
                     videoRef.current.currentTime = seconds
-                    setPlaybackTime(seconds)
                   }
                 }}
-                currentTime={playbackTime}
                 onEditNote={(id, text) => setPrompt({ kind: "note", id, text })}
               />
             </section>

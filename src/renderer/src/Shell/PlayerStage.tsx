@@ -1,5 +1,6 @@
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from "react"
 import type { AppLanguage, Caption, LibrarySnapshot, VideoRecord } from "../../../library/types.js"
+import { publishPlaybackTime } from "../playbackClock"
 import { Player } from "../Player"
 import { Composer } from "./Composer"
 import { EmptyPlayer } from "./EmptyPlayer"
@@ -19,7 +20,6 @@ export function PlayerStage({
   setNote,
   stampOn,
   setStampOn,
-  setPlaybackTime,
   lastPosWrite,
   setPrompt,
   selectAndPlay
@@ -36,7 +36,6 @@ export function PlayerStage({
   setNote: Dispatch<SetStateAction<string>>
   stampOn: boolean
   setStampOn: Dispatch<SetStateAction<boolean>>
-  setPlaybackTime: Dispatch<SetStateAction<number>>
   lastPosWrite: MutableRefObject<number>
   setPrompt: Dispatch<SetStateAction<PromptState>>
   selectAndPlay: (method: "nextVideoId" | "previousVideoId") => Promise<boolean>
@@ -59,7 +58,7 @@ export function PlayerStage({
             playAfterSelect={playAfterSelect}
             title={selected.name}
             onTimeUpdate={(time) => {
-              setPlaybackTime(time)
+              publishPlaybackTime(time)
               const now = Date.now()
               if (now - lastPosWrite.current < 800) return
               lastPosWrite.current = now

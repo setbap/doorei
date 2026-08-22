@@ -1,4 +1,5 @@
 import type { CaptionSegment } from "../../../library/types.js"
+import { activeCaption as lookupCaption } from "../../../library/captionLookup.js"
 
 export function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00"
@@ -22,5 +23,5 @@ export function toHex6(color: string): string {
 }
 
 export function activeCaption(segments: CaptionSegment[], time: number): string {
-  return segments.find((segment) => time >= segment.startSeconds && time <= segment.endSeconds)?.text ?? ""
+  return lookupCaption(segments, time)
 }

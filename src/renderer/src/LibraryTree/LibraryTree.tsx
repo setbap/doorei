@@ -8,6 +8,7 @@ import {
   type TreeDragged,
   type TreeDropTarget
 } from "../../../library/treeDrop.js"
+import { indexJobsByVideo } from "../../../library/jobIndex.js"
 import { t } from "../uiText"
 import { orderedCourses } from "./orderedCourses"
 import { SessionBranch } from "./SessionBranch"
@@ -49,6 +50,7 @@ export function LibraryTree({ snapshot, lang, onAddVideos, onRenameSession, onDe
     }
     return map
   }, [snapshot.videos])
+  const jobsByVideo = useMemo(() => indexJobsByVideo(snapshot.jobs), [snapshot.jobs])
 
   useEffect(() => {
     if (!selected) return
@@ -136,6 +138,7 @@ export function LibraryTree({ snapshot, lang, onAddVideos, onRenameSession, onDe
                     onDropTarget={setDropTarget}
                     placementFor={placementFor}
                     onCommit={commit}
+                    jobsByVideo={jobsByVideo}
                   />
                 ))
               : null}

@@ -1,3 +1,4 @@
+import { memo } from "react"
 import MarkdownImpl from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { ReactNode } from "react"
@@ -6,7 +7,7 @@ import { textDirection } from "../../library/textDirection.js"
 import { linkHitCitations, resolveHit } from "../../library/hitLinks.js"
 import { repairMarkdownTables } from "../../library/markdownTables.js"
 
-export function Markdown({
+export const Markdown = memo(function Markdown({
   text,
   hits,
   onHit
@@ -53,7 +54,7 @@ export function Markdown({
       </MarkdownImpl>
     </div>
   )
-}
+})
 
 function childrenToText(node: ReactNode): string {
   if (node == null || typeof node === "boolean") return ""

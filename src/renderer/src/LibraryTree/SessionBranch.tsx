@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { Hint } from "../Hint"
 import { t } from "../uiText"
 import type { LibraryTreeProps, TreeHandlers } from "./types"
+import type { VideoJobState } from "../../../library/jobIndex.js"
 import { VideoRow } from "./VideoRow"
 
 export function SessionBranch({
@@ -30,7 +31,8 @@ export function SessionBranch({
   onDragged,
   onDropTarget,
   placementFor,
-  onCommit
+  onCommit,
+  jobsByVideo
 }: {
   session: SessionRecord
   videos: VideoRecord[]
@@ -41,6 +43,7 @@ export function SessionBranch({
   onAddVideos: LibraryTreeProps["onAddVideos"]
   onRenameSession: () => void
   onDeleteSession: () => void
+  jobsByVideo: Map<string, VideoJobState>
 } & TreeHandlers) {
   const sessionDropTarget =
     dropTarget?.kind === "session" && dropTarget.id === session.id ? dropTarget.placement : null
@@ -219,6 +222,7 @@ export function SessionBranch({
                 onDropTarget={onDropTarget}
                 placementFor={placementFor}
                 onCommit={onCommit}
+                jobState={jobsByVideo.get(video.id)}
               />
             ))
           )}

@@ -51,18 +51,15 @@ import { t } from "./uiText";
 type Props = {
   snapshot: LibrarySnapshot;
   lang: AppLanguage;
-  question: string;
-  setQuestion: (value: string) => void;
   onSeek: (seconds: number | null) => void;
 };
 
 export function AskPane({
   snapshot,
   lang,
-  question,
-  setQuestion,
   onSeek,
 }: Props) {
+  const [question, setQuestion] = useState("");
   const [renameOpen, setRenameOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
@@ -75,7 +72,10 @@ export function AskPane({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const turns = snapshot.conversationTurns;
   const empty = turns.length === 0 && !pendingQuestion;
-  const catalog = useMemo(() => mentionableItems(snapshot), [snapshot]);
+  const catalog = useMemo(
+    () => mentionableItems(snapshot),
+    [snapshot.selectedCourseId, snapshot.sessions, snapshot.videos]
+  );
   const pinned = useMemo(
     () =>
       mentions
