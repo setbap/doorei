@@ -3,7 +3,7 @@ import { settingsForVideo } from "../courseSettings.js"
 import { REQUIRED_MODELS } from "../models.js"
 import type { Caption, CaptionSegment, Job, SpokenLanguage } from "../types.js"
 import type { LibraryCore } from "./core.js"
-import { captionLines, chunkCaption, id, parseImprovedTexts, unwrapFence } from "./helpers.js"
+import { captionLines, chunkCaption, id, l2Normalize, parseImprovedTexts, unwrapFence } from "./helpers.js"
 import { courseIdOfVideo, recallCaption, treeVideos } from "./tree.js"
 
 function asrModelId(language: SpokenLanguage): string {
@@ -12,6 +12,7 @@ function asrModelId(language: SpokenLanguage): string {
 
 export function bindJobs(core: LibraryCore): void {
   const { state, deps } = core
+  let lastCaptionNotifyAt = 0
 
   function upsertJob(kind: Job["kind"], videoId: string): Job {
     let job = state.jobs.find((item) => item.kind === kind && item.videoId === videoId)
@@ -135,7 +136,12 @@ export function bindJobs(core: LibraryCore): void {
       onProgress: (progress) => {
         job.progress = Math.min(0.99, Math.max(0, progress))
         video.captioningProgress = job.progress
-        core.emit({ kind: "captioning", videoId: video.id })
+        persistLibrary(deps.dataDir, state, { kind: "captioning", videoId: video.id })
+        const now = Date.now()
+        if (now - lastCaptionNotifyAt >= 200) {
+          lastCaptionNotifyAt = now
+          core.notifyLight()
+        }
       }
     })
     if (job.status === "failed") return
@@ -156,12 +162,12 @@ export function bindJobs(core: LibraryCore): void {
     state.embeddings[job.videoId] = [
       ...(caption?.segments.map((_, index) => ({
         segmentIndex: index,
-        vector: vectors[index] ?? [],
+        vector: l2Normalize(vectors[index] ?? []),
         kind: "caption" as const
       })) ?? []),
       ...notes.map((note, index) => ({
         segmentIndex: index,
-        vector: vectors[captionCount + index] ?? [],
+        vector: l2Normalize(vectors[captionCount + index] ?? []),
         kind: "note" as const,
         noteId: note.id
       }))

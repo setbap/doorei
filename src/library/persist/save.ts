@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
-import { ensureCourse, withDb } from "./db.js"
+import { closeDb, ensureCourse, withDb } from "./db.js"
 import { saveVideoEmbeddings } from "./embeddings.js"
 import { courseIdForVideo, coursePath } from "./paths.js"
 import type { LibraryState, PersistHint } from "./types.js"
@@ -52,25 +52,47 @@ function saveCaptioning(dataDir: string, state: LibraryState, videoId: string): 
   }
   withDb(path, (db) => {
     ensureCourse(db)
-    db.prepare("UPDATE videos SET captioning_progress = ? WHERE id = ?").run(
-      video.captioningProgress,
-      videoId
-    )
-    db.prepare("DELETE FROM captions WHERE video_id = ?").run(videoId)
-    const caption = state.captions[videoId]
-    if (caption) {
-      db.prepare("INSERT INTO captions(video_id, source, segments) VALUES(?, ?, ?)").run(
-        videoId,
-        caption.source,
-        JSON.stringify(caption.segments)
+    db.exec("BEGIN")
+    try {
+      db.prepare("UPDATE videos SET captioning_progress = ? WHERE id = ?").run(
+        video.captioningProgress,
+        videoId
       )
-    }
-    db.prepare("DELETE FROM jobs WHERE video_id = ?").run(videoId)
-    const insertJob = db.prepare(
-      "INSERT INTO jobs(id, kind, video_id, status, progress, error) VALUES(?, ?, ?, ?, ?, ?)"
-    )
-    for (const job of state.jobs.filter((item) => item.videoId === videoId)) {
-      insertJob.run(job.id, job.kind, job.videoId, job.status, job.progress, job.error)
+      const caption = state.captions[videoId]
+      if (caption) {
+        db.prepare(
+          `INSERT INTO captions(video_id, source, segments) VALUES(?, ?, ?)
+           ON CONFLICT(video_id) DO UPDATE SET source = excluded.source, segments = excluded.segments`
+        ).run(videoId, caption.source, JSON.stringify(caption.segments))
+      } else {
+        db.prepare("DELETE FROM captions WHERE video_id = ?").run(videoId)
+      }
+      const jobs = state.jobs.filter((item) => item.videoId === videoId)
+      if (jobs.length === 0) {
+        db.prepare("DELETE FROM jobs WHERE video_id = ?").run(videoId)
+      } else {
+        const placeholders = jobs.map(() => "?").join(",")
+        db.prepare(`DELETE FROM jobs WHERE video_id = ? AND id NOT IN (${placeholders})`).run(
+          videoId,
+          ...jobs.map((job) => job.id)
+        )
+        const upsertJob = db.prepare(
+          `INSERT INTO jobs(id, kind, video_id, status, progress, error) VALUES(?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             kind = excluded.kind,
+             video_id = excluded.video_id,
+             status = excluded.status,
+             progress = excluded.progress,
+             error = excluded.error`
+        )
+        for (const job of jobs) {
+          upsertJob.run(job.id, job.kind, job.videoId, job.status, job.progress, job.error)
+        }
+      }
+      db.exec("COMMIT")
+    } catch (error) {
+      db.exec("ROLLBACK")
+      throw error
     }
   })
 }
@@ -82,7 +104,6 @@ export function savePlayback(dataDir: string, state: LibraryState, videoId: stri
     saveLibrary(dataDir, state)
     return
   }
-  writeApp(dataDir, state)
   withDb(coursePath(dataDir, courseId), (db) => {
     ensureCourse(db)
     db.prepare("UPDATE videos SET playback_position_seconds = ?, watched = ? WHERE id = ?").run(
@@ -107,5 +128,6 @@ export function saveConversations(dataDir: string, state: LibraryState, courseId
 }
 
 export function deleteCourseData(dataDir: string, courseId: string): void {
+  closeDb(coursePath(dataDir, courseId))
   rmSync(join(dataDir, "courses", courseId), { recursive: true, force: true })
 }

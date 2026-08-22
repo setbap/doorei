@@ -7,6 +7,8 @@ export {
   hubUrlForModel
 } from "./models.js"
 export { createLibrary } from "./createLibrary/index.js"
+export { activeCaption, activeCaptionIndex } from "./captionLookup.js"
+export { indexJobsByVideo } from "./jobIndex.js"
 export { DEFAULT_PROMPTS } from "./defaults.js"
 export {
   mentionableItems,
@@ -28,6 +30,7 @@ export {
   providerConfigFromFields,
   providerVaultFromFields
 } from "./providerConfig.js"
+export type { VideoJobState } from "./jobIndex.js"
 export type {
   Activity,
   AppLanguage,

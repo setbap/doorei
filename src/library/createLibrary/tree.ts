@@ -8,20 +8,23 @@ export function courseIdOfVideo(state: LibraryState, videoId: string): string | 
 }
 
 export function treeSessions(state: LibraryState): LibraryState["sessions"] {
+  const courseIndex = new Map(state.courses.map((course, index) => [course.id, index]))
   return state.sessions.slice().sort((a, b) => {
-    const courseA = state.courses.findIndex((course) => course.id === a.courseId)
-    const courseB = state.courses.findIndex((course) => course.id === b.courseId)
+    const courseA = courseIndex.get(a.courseId) ?? 0
+    const courseB = courseIndex.get(b.courseId) ?? 0
     if (courseA !== courseB) return courseA - courseB
     return a.position - b.position
   })
 }
 
 export function treeVideos(state: LibraryState): VideoRecord[] {
+  const courseIndex = new Map(state.courses.map((course, index) => [course.id, index]))
+  const sessionById = new Map(state.sessions.map((session) => [session.id, session]))
   return state.videos.slice().sort((a, b) => {
-    const sessionA = state.sessions.find((session) => session.id === a.sessionId)
-    const sessionB = state.sessions.find((session) => session.id === b.sessionId)
-    const courseA = state.courses.findIndex((course) => course.id === sessionA?.courseId)
-    const courseB = state.courses.findIndex((course) => course.id === sessionB?.courseId)
+    const sessionA = sessionById.get(a.sessionId)
+    const sessionB = sessionById.get(b.sessionId)
+    const courseA = courseIndex.get(sessionA?.courseId ?? "") ?? 0
+    const courseB = courseIndex.get(sessionB?.courseId ?? "") ?? 0
     if (courseA !== courseB) return courseA - courseB
     const sessionPosA = sessionA?.position ?? 0
     const sessionPosB = sessionB?.position ?? 0

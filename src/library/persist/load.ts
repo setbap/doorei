@@ -204,6 +204,7 @@ function loadSqlite(dataDir: string): LibraryState {
   for (const course of state.courses) loadCourseFile(dataDir, course.id, state)
   if (state.selectedCourseId) {
     state.embeddings = loadCourseEmbeddings(dataDir, state.selectedCourseId)
+    state.loadedEmbeddingsCourseId = state.selectedCourseId
   }
   for (const video of state.videos) {
     video.hasSummary = Boolean(state.summaries[video.id])

@@ -3,12 +3,13 @@ import { DEFAULT_SETTINGS } from "../defaults.js"
 import { REQUIRED_MODELS } from "../models.js"
 import type { LibrarySnapshot } from "../types.js"
 import type { LibraryCore } from "./core.js"
-import { treeSessions, treeVideos } from "./tree.js"
 
 export function buildSnapshot(core: LibraryCore): LibrarySnapshot {
-  const { state, deps } = core
-  for (const video of state.videos) {
-    video.fileMissing = !deps.media.exists(video.path)
+  const { state } = core
+  if (!core.lightSnapshot) {
+    for (const video of state.videos) {
+      video.fileMissing = !core.deps.media.exists(video.path)
+    }
   }
   const selected = state.videos.find((video) => video.id === state.selectedVideoId) ?? null
   const selectedCourse = state.courses.find((course) => course.id === state.selectedCourseId) ?? null
@@ -26,13 +27,13 @@ export function buildSnapshot(core: LibraryCore): LibrarySnapshot {
     prompts: { ...courseSettings.prompts },
     requiredModels: Object.values(REQUIRED_MODELS).map((modelId) => ({
       id: modelId,
-      complete: deps.modelStore.isComplete(modelId)
+      complete: core.deps.modelStore.isComplete(modelId)
     })),
     courses: state.courses.map((course) => ({ ...course, prompts: { ...course.prompts } })),
     selectedCourseId: state.selectedCourseId,
     selectedVideoId: state.selectedVideoId,
-    sessions: treeSessions(state).map((session) => ({ ...session })),
-    videos: treeVideos(state).map((video) => ({
+    sessions: core.treeSessions().map((session) => ({ ...session })),
+    videos: core.treeVideos().map((video) => ({
       ...video,
       hasSummary: Boolean(state.summaries[video.id])
     })),
@@ -58,4 +59,21 @@ export function buildSnapshot(core: LibraryCore): LibrarySnapshot {
     activity: state.activity,
     selectedCourseName: selectedCourse?.name ?? null
   }
+}
+
+export function isLightHint(hint: Parameters<LibraryCore["emit"]>[0]): boolean {
+  if (hint === "ui") return true
+  if (!hint || typeof hint !== "object") return false
+  return (
+    hint.kind === "captioning" ||
+    hint.kind === "embeddings" ||
+    hint.kind === "playback" ||
+    hint.kind === "ask"
+  )
+}
+
+export function isStructuralHint(hint: Parameters<LibraryCore["emit"]>[0]): boolean {
+  if (hint === "ui") return false
+  if (!hint) return true
+  return hint.kind === "course" || hint.kind === "library"
 }

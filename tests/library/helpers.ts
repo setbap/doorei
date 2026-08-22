@@ -11,6 +11,7 @@ import {
   type ProviderClient,
   type SpeechRecognizer
 } from "../../src/library/index.js"
+import { closeAllDbs } from "../../src/library/persist/index.js"
 
 export class MemoryModelStore implements ModelStore {
   private readonly completeIds = new Set<string>()
@@ -81,6 +82,7 @@ export function createTestLibrary(options?: {
   dataDir: string
 } {
   const dataDir = mkdtempSync(join(tmpdir(), "doorei-"))
+  closeAllDbs()
   const modelStore = new MemoryModelStore()
   if (options?.modelsComplete) {
     modelStore.markAllRequired()
