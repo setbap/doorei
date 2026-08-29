@@ -96,17 +96,34 @@ export function captionLines(segments: CaptionSegment[]): string {
 }
 
 export function cosine(a: number[], b: number[]): number {
-  let dot = 0
+  let product = 0
   let na = 0
   let nb = 0
-  const n = Math.max(a.length, b.length)
+  const n = Math.min(a.length, b.length)
   for (let i = 0; i < n; i += 1) {
-    const x = a[i] ?? 0
-    const y = b[i] ?? 0
-    dot += x * y
+    const x = a[i]!
+    const y = b[i]!
+    product += x * y
     na += x * x
     nb += y * y
   }
   if (na === 0 || nb === 0) return 0
-  return dot / (Math.sqrt(na) * Math.sqrt(nb))
+  return product / (Math.sqrt(na) * Math.sqrt(nb))
+}
+
+export function l2Normalize(vector: number[]): number[] {
+  let sum = 0
+  for (const value of vector) sum += value * value
+  if (sum === 0) return vector
+  const scale = 1 / Math.sqrt(sum)
+  const out = new Array<number>(vector.length)
+  for (let i = 0; i < vector.length; i += 1) out[i] = vector[i]! * scale
+  return out
+}
+
+export function dot(a: number[], b: number[]): number {
+  const n = Math.min(a.length, b.length)
+  let sum = 0
+  for (let i = 0; i < n; i += 1) sum += a[i]! * b[i]!
+  return sum
 }

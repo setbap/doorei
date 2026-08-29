@@ -3,6 +3,15 @@ import { blobToVector, ensureCourse, vectorToBlob, withDb } from "./db.js"
 import { coursePath } from "./paths.js"
 import type { EmbeddingRow } from "./types.js"
 
+function l2Normalize(vector: number[]): number[] {
+  let sum = 0
+  for (const value of vector) sum += value * value
+  if (sum === 0) return vector
+  const scale = 1 / Math.sqrt(sum)
+  for (let i = 0; i < vector.length; i += 1) vector[i]! *= scale
+  return vector
+}
+
 export function loadCourseEmbeddings(
   dataDir: string,
   courseId: string
@@ -23,7 +32,7 @@ export function loadCourseEmbeddings(
       const list = embeddings[row.video_id] ?? []
       list.push({
         segmentIndex: row.segment_index,
-        vector: blobToVector(row.vector),
+        vector: l2Normalize(blobToVector(row.vector)),
         kind: row.kind,
         ...(row.note_id ? { noteId: row.note_id } : {})
       })

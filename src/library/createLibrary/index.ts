@@ -13,7 +13,7 @@ import { bindJobs } from "./jobs.js"
 import { recallApi } from "./recallApi.js"
 import { collectHits } from "./search.js"
 import { settingsApi } from "./settingsApi.js"
-import { buildSnapshot } from "./snapshot.js"
+import { buildSnapshot, isLightHint, isStructuralHint } from "./snapshot.js"
 import {
   courseIdOfVideo,
   neighborVideoId,
@@ -33,11 +33,37 @@ export function createLibrary(deps: LibraryDeps): Library {
     state,
     listeners,
     missingSummaryQueue: [] as string[],
-    chain: Promise.resolve()
+    chain: Promise.resolve(),
+    treeEpoch: 0,
+    lightSnapshot: false
   } as LibraryCore
+
+  let sessionCache: ReturnType<typeof treeSessions> = []
+  let videoCache: ReturnType<typeof treeVideos> = []
+  let cachedTreeEpoch = -1
+
+  function cachedTree(): void {
+    if (cachedTreeEpoch === core.treeEpoch) return
+    sessionCache = treeSessions(state)
+    videoCache = treeVideos(state)
+    cachedTreeEpoch = core.treeEpoch
+  }
 
   core.notify = () => {
     for (const listener of listeners) listener()
+  }
+
+  core.notifyLight = () => {
+    core.lightSnapshot = true
+    try {
+      core.notify()
+    } finally {
+      core.lightSnapshot = false
+    }
+  }
+
+  core.persistOnly = (hint) => {
+    persistLibrary(deps.dataDir, state, hint)
   }
 
   function defaultHint(): PersistHint {
@@ -49,14 +75,16 @@ export function createLibrary(deps: LibraryDeps): Library {
   core.emit = (hint) => {
     if (hint !== "ui") {
       persistLibrary(deps.dataDir, state, hint ?? defaultHint())
+      if (isStructuralHint(hint)) core.treeEpoch += 1
     }
-    core.notify()
+    if (isLightHint(hint)) core.notifyLight()
+    else core.notify()
   }
 
   core.persistAsk = (courseId = state.selectedCourseId) => {
     if (courseId) {
       persistLibrary(deps.dataDir, state, { kind: "ask", courseId })
-      core.notify()
+      core.notifyLight()
       return
     }
     core.emit()
@@ -68,7 +96,9 @@ export function createLibrary(deps: LibraryDeps): Library {
     core.emit(courseId ? { kind: "course", courseId } : undefined)
   }
   core.loadEmbeddingsForCourse = (courseId) => {
+    if (state.loadedEmbeddingsCourseId === courseId) return
     state.embeddings = loadCourseEmbeddings(deps.dataDir, courseId)
+    state.loadedEmbeddingsCourseId = courseId
   }
   core.modelsComplete = () =>
     Object.values(REQUIRED_MODELS).every((modelId) => deps.modelStore.isComplete(modelId))
@@ -86,8 +116,14 @@ export function createLibrary(deps: LibraryDeps): Library {
       )
     }
   }
-  core.treeSessions = () => treeSessions(state)
-  core.treeVideos = () => treeVideos(state)
+  core.treeSessions = () => {
+    cachedTree()
+    return sessionCache
+  }
+  core.treeVideos = () => {
+    cachedTree()
+    return videoCache
+  }
   core.selectedVideo = () => {
     const video = state.videos.find((item) => item.id === state.selectedVideoId)
     if (!video) throw new Error("No Video selected")
@@ -106,6 +142,7 @@ export function createLibrary(deps: LibraryDeps): Library {
       state.selectedVideoId = null
     }
     if (courseId) saveVideoEmbeddings(deps.dataDir, courseId, videoId, [])
+    core.treeEpoch += 1
   }
   core.vaultForSnapshot = (): ProviderVault => {
     const vault: ProviderVault = { ...state.providerVault }

@@ -87,6 +87,10 @@ export function videosApi(core: LibraryCore): Pick<
         saveVideoEmbeddings(deps.dataDir, fromCourseId, videoId, [])
         state.embeddings[videoId] = rows
         core.emit({ kind: "library" })
+        if (state.loadedEmbeddingsCourseId === fromCourseId) {
+          state.loadedEmbeddingsCourseId = null
+          if (state.selectedCourseId) core.loadEmbeddingsForCourse(state.selectedCourseId)
+        }
         return
       }
       core.emit()
@@ -134,7 +138,7 @@ export function videosApi(core: LibraryCore): Pick<
       core.assertUsable()
       const video = core.selectedVideo()
       video.playbackPositionSeconds = seconds
-      core.emit({ kind: "playback", videoId: video.id })
+      core.persistOnly({ kind: "playback", videoId: video.id })
     },
     async setWatched(videoId, watched) {
       core.assertUsable()

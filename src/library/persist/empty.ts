@@ -19,6 +19,7 @@ export function emptyLibraryState(): LibraryState {
     improvedCaptions: {},
     summaries: {},
     embeddings: {},
+    loadedEmbeddingsCourseId: null,
     jobs: [],
     searchHits: [],
     conversations: [],

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Captions, FileText, MessageSquare, Search, StickyNote } from "lucide-react"
-import type { AppLanguage, LibrarySnapshot, SearchScope } from "../../../library/types.js"
+import type { AppLanguage, LibrarySnapshot } from "../../../library/types.js"
 import { AskPane } from "../AskPane"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { cn } from "@/lib/utils"
@@ -22,36 +22,12 @@ const ACTIVITIES = [
 type Props = {
   snapshot: LibrarySnapshot
   lang: AppLanguage
-  query: string
-  setQuery: (value: string) => void
-  question: string
-  setQuestion: (value: string) => void
-  scope: SearchScope
-  setScope: (value: SearchScope) => void
   onSeek: (seconds: number | null) => void
   onEditNote: (id: string, text: string) => void
-  currentTime: number
 }
 
-export function ToolPane({
-  snapshot,
-  lang,
-  query,
-  setQuery,
-  question,
-  setQuestion,
-  scope,
-  setScope,
-  onSeek,
-  onEditNote,
-  currentTime
-}: Props) {
+export function ToolPane({ snapshot, lang, onSeek, onEditNote }: Props) {
   const [activity, setActivity] = useState(snapshot.activity)
-  const scopeItems = {
-    video: t(lang, "scopeVideo"),
-    session: t(lang, "scopeSession"),
-    course: t(lang, "scopeCourse")
-  }
 
   useEffect(() => {
     setActivity(snapshot.activity)
@@ -115,31 +91,13 @@ export function ToolPane({
       </div>
       <div className={cn("flex min-h-0 flex-1 flex-col", activity === "ask" ? "" : "p-3")}>
         {activity === "search" ? (
-          <SearchPane
-            snapshot={snapshot}
-            lang={lang}
-            query={query}
-            setQuery={setQuery}
-            scope={scope}
-            setScope={setScope}
-            scopeItems={scopeItems}
-            onSeekHit={seekHit}
-          />
+          <SearchPane snapshot={snapshot} lang={lang} onSeekHit={seekHit} />
         ) : null}
-        {activity === "ask" ? (
-          <AskPane
-            snapshot={snapshot}
-            lang={lang}
-            question={question}
-            setQuestion={setQuestion}
-            onSeek={onSeek}
-          />
-        ) : null}
+        {activity === "ask" ? <AskPane snapshot={snapshot} lang={lang} onSeek={onSeek} /> : null}
         {activity === "captions" ? (
           <CaptionList
             lang={lang}
             segments={(snapshot.improvedCaption ?? snapshot.caption)?.segments ?? []}
-            currentTime={currentTime}
             onSeek={onSeek}
           />
         ) : null}

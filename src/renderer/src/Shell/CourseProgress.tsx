@@ -1,15 +1,16 @@
+import { useMemo } from "react"
 import type { LibrarySnapshot } from "../../../library/types.js"
 import { courseWatchProgress } from "../../../library/courseProgress.js"
 
 export function CourseProgress({ snapshot }: { snapshot: LibrarySnapshot }) {
-  const sessionIds = new Set(
-    snapshot.sessions
-      .filter((session) => session.courseId === snapshot.selectedCourseId)
-      .map((session) => session.id)
-  )
-  const progress = courseWatchProgress(
-    snapshot.videos.filter((video) => sessionIds.has(video.sessionId))
-  )
+  const progress = useMemo(() => {
+    const sessionIds = new Set(
+      snapshot.sessions
+        .filter((session) => session.courseId === snapshot.selectedCourseId)
+        .map((session) => session.id)
+    )
+    return courseWatchProgress(snapshot.videos.filter((video) => sessionIds.has(video.sessionId)))
+  }, [snapshot.sessions, snapshot.videos, snapshot.selectedCourseId])
   return (
     <div
       className="flex min-w-0 max-w-xs items-center gap-2"

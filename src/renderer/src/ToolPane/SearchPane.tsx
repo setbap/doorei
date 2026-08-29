@@ -19,26 +19,23 @@ const SEARCH_DEBOUNCE_MS = 300
 export function SearchPane({
   snapshot,
   lang,
-  query,
-  setQuery,
-  scope,
-  setScope,
-  scopeItems,
   onSeekHit
 }: {
   snapshot: LibrarySnapshot
   lang: AppLanguage
-  query: string
-  setQuery: (value: string) => void
-  scope: SearchScope
-  setScope: (value: SearchScope) => void
-  scopeItems: Record<SearchScope, string>
   onSeekHit: (videoId: string, startSeconds: number | null) => Promise<void>
 }) {
+  const [query, setQuery] = useState("")
+  const [scope, setScope] = useState<SearchScope>("video")
   const [showAll, setShowAll] = useState(false)
   const debounceRef = useRef(0)
   const hits = snapshot.searchHits
   const visible = showAll ? hits : hits.slice(0, SEARCH_PREVIEW)
+  const scopeItems = {
+    video: t(lang, "scopeVideo"),
+    session: t(lang, "scopeSession"),
+    course: t(lang, "scopeCourse")
+  }
 
   useEffect(() => {
     setShowAll(false)
@@ -91,7 +88,10 @@ export function SearchPane({
       <ScrollArea className="mt-3 min-h-0 flex-1">
         <ul className="space-y-2">
           {visible.map((hit, index) => (
-            <li key={`${hit.videoId}-${hit.kind}-${hit.startSeconds}-${index}`}>
+            <li
+              key={`${hit.videoId}-${hit.kind}-${hit.startSeconds}-${index}`}
+              className="[content-visibility:auto] [contain-intrinsic-size:auto_4.5rem]"
+            >
               <Button
                 variant="secondary"
                 className="h-auto w-full flex-col items-start gap-1 whitespace-normal py-2"

@@ -1,5 +1,5 @@
 import { applyCoursePatch, fieldsForCreate, validateCourseName } from "../courseSettings.js"
-import { deleteCourseData } from "../persist/index.js"
+import { deleteCourseData, loadCourseEmbeddings } from "../persist/index.js"
 import type { Library } from "../types.js"
 import type { LibraryCore } from "./core.js"
 import { id } from "./helpers.js"
@@ -72,6 +72,13 @@ export function coursesApi(core: LibraryCore): Pick<
         state.selectedVideoId = null
       }
       deleteCourseData(deps.dataDir, courseId)
+      if (state.loadedEmbeddingsCourseId === courseId) {
+        state.loadedEmbeddingsCourseId = state.selectedCourseId
+        state.embeddings = state.selectedCourseId
+          ? loadCourseEmbeddings(deps.dataDir, state.selectedCourseId)
+          : {}
+      }
+      core.treeEpoch += 1
       core.emit({ kind: "app" })
     },
     async selectCourse(courseId) {

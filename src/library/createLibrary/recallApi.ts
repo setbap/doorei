@@ -13,6 +13,7 @@ import {
   resolveMentions,
   userTurnText
 } from "../askMentions.js"
+import { persistLibrary } from "../persist/index.js"
 import { settingsForCourse } from "../courseSettings.js"
 import type { ConversationTurn, Hit, Library } from "../types.js"
 import type { LibraryCore } from "./core.js"
@@ -60,7 +61,8 @@ export function recallApi(core: LibraryCore): Pick<
       core.assertUsable()
       const hits = await core.collectHits(input)
       state.searchHits = hits
-      core.emit({ kind: "app" })
+      persistLibrary(deps.dataDir, state, { kind: "app" })
+      core.notifyLight()
       return hits
     },
     async ask(input) {

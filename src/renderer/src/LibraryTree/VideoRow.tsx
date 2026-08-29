@@ -1,6 +1,7 @@
 import type { MutableRefObject } from "react"
 import { Ellipsis, Loader2 } from "lucide-react"
 import type { AppLanguage, LibrarySnapshot, VideoRecord } from "../../../library/types.js"
+import type { VideoJobState } from "../../../library/jobIndex.js"
 import { treeDropCommand } from "../../../library/treeDrop.js"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -36,22 +37,19 @@ export function VideoRow({
   onDragged,
   onDropTarget,
   placementFor,
-  onCommit
+  onCommit,
+  jobState
 }: {
   video: VideoRecord
   snapshot: LibrarySnapshot
   lang: AppLanguage
   skipClick: MutableRefObject<boolean>
+  jobState?: VideoJobState
 } & TreeHandlers) {
   const videoHint = dropTarget?.kind === "video" && dropTarget.id === video.id ? dropTarget.placement : null
   const selected = video.id === snapshot.selectedVideoId
-  const failedJobs = snapshot.jobs.filter((job) => job.videoId === video.id && job.status === "failed")
-  const pipeline = snapshot.jobs.filter(
-    (job) =>
-      job.videoId === video.id &&
-      (job.kind === "improve" || job.kind === "summary") &&
-      (job.status === "queued" || job.status === "running")
-  )
+  const failedJobs = jobState?.failed ?? []
+  const pipeline = jobState?.pipeline ?? []
   const spinJob =
     pipeline.find((job) => job.status === "running") ??
     pipeline.find((job) => job.kind === "improve") ??
@@ -60,14 +58,12 @@ export function VideoRow({
   const hasSummary =
     video.hasSummary ||
     (video.id === snapshot.selectedVideoId && Boolean(snapshot.summary)) ||
-    snapshot.jobs.some(
-      (job) => job.videoId === video.id && job.kind === "summary" && job.status === "complete"
-    )
+    Boolean(jobState?.hasCompleteSummary)
   return (
     <ContextMenu>
       <ContextMenuTrigger
         className={cn(
-          "group/video mt-0.5 flex items-center gap-0.5 rounded-md pe-0.5",
+          "group/video mt-0.5 flex items-center gap-0.5 rounded-md pe-0.5 [content-visibility:auto] [contain-intrinsic-size:auto_2.5rem]",
           dragged?.kind === "video" && dragged.id === video.id && "opacity-50",
           videoHint === "before" && "shadow-[inset_0_2px_0_0_var(--sidebar-foreground)]",
           videoHint === "after" && "shadow-[inset_0_-2px_0_0_var(--sidebar-foreground)]"

@@ -7,7 +7,11 @@ export type LibraryCore = {
   listeners: Set<() => void>
   missingSummaryQueue: string[]
   chain: Promise<void>
+  treeEpoch: number
+  lightSnapshot: boolean
   notify(): void
+  notifyLight(): void
+  persistOnly(hint: PersistHint): void
   emit(hint?: PersistHint | "ui"): void
   persistAsk(courseId?: string | null): void
   emitForVideo(videoId: string): void

@@ -2,14 +2,36 @@ import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
-export function withDb<T>(path: string, fn: (db: DatabaseSync) => T): T {
+const open = new Map<string, DatabaseSync>()
+
+function openDb(path: string): DatabaseSync {
+  const existing = open.get(path)
+  if (existing) return existing
   mkdirSync(join(path, ".."), { recursive: true })
   const db = new DatabaseSync(path)
-  try {
-    db.exec("PRAGMA journal_mode = WAL")
-    return fn(db)
-  } finally {
+  db.exec("PRAGMA journal_mode = WAL")
+  db.exec("PRAGMA synchronous = NORMAL")
+  db.exec("PRAGMA temp_store = MEMORY")
+  db.exec("PRAGMA busy_timeout = 5000")
+  open.set(path, db)
+  return db
+}
+
+export function withDb<T>(path: string, fn: (db: DatabaseSync) => T): T {
+  return fn(openDb(path))
+}
+
+export function closeDb(path: string): void {
+  const db = open.get(path)
+  if (!db) return
+  db.close()
+  open.delete(path)
+}
+
+export function closeAllDbs(): void {
+  for (const [path, db] of open) {
     db.close()
+    open.delete(path)
   }
 }
 

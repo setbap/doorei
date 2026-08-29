@@ -44,6 +44,7 @@ export type LibraryState = {
   improvedCaptions: Record<string, Caption>
   summaries: Record<string, string>
   embeddings: Record<string, EmbeddingRow[]>
+  loadedEmbeddingsCourseId: string | null
   jobs: Job[]
   searchHits: Hit[]
   conversations: StoredConversation[]
